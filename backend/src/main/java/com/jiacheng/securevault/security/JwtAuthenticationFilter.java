@@ -1,6 +1,6 @@
 package com.jiacheng.securevault.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.jiacheng.securevault.common.ApiResponse;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
