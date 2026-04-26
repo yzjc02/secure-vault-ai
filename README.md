@@ -69,6 +69,8 @@ Authorization: Bearer <JWT_TOKEN>
 
 结果预期：
 - 不带 Token：`401 Unauthorized`
+- Token 非 `Bearer <token>` 格式：`401 Unauthorized`
+- Token 无效或过期：`401 Unauthorized`
 - 带有效 Token：返回当前登录用户信息
 
 ### 5) Postman 测试建议
