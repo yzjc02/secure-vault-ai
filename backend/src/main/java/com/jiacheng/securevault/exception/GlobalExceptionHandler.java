@@ -1,6 +1,8 @@
 package com.jiacheng.securevault.exception;
 
 import com.jiacheng.securevault.common.ApiResponse;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -30,6 +32,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ApiResponse<Void> handleHttpMessageNotReadableException(HttpMessageNotReadableException ex) {
         return ApiResponse.fail(400, "请求体格式错误");
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ApiResponse<Void> handleAuthenticationException(AuthenticationException ex) {
+        return ApiResponse.fail(401, "Unauthorized");
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ApiResponse<Void> handleAccessDeniedException(AccessDeniedException ex) {
+        return ApiResponse.fail(403, "Forbidden");
     }
 
     @ExceptionHandler(Exception.class)
