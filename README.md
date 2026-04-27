@@ -6,6 +6,26 @@ Privacy-first personal knowledge vault powered by Spring Boot + RAG + Ollama.
 
 后端目录：`backend`
 
+> 注意：当前仅完成第一模块（用户注册、登录、JWT 鉴权、当前用户识别），未完成文档上传、RAG、Ollama、向量检索等后续模块。
+
+### 0) 配置 JWT 环境变量（必须）
+
+JWT 密钥必须通过环境变量提供，**不要把真实 JWT_SECRET 提交到 GitHub**。
+
+Windows PowerShell:
+
+```powershell
+$env:JWT_SECRET="replace-with-at-least-64-character-random-secret"
+$env:JWT_EXPIRATION="86400000"
+```
+
+macOS / Linux:
+
+```bash
+export JWT_SECRET="replace-with-at-least-64-character-random-secret"
+export JWT_EXPIRATION="86400000"
+```
+
 ### 1) 启动项目
 
 ```bash
@@ -69,7 +89,25 @@ Authorization: Bearer <JWT_TOKEN>
 
 结果预期：
 - 不带 Token：`401 Unauthorized`
+- Token 非 `Bearer <token>` 格式：`401 Unauthorized`
+- Token 无效或过期：`401 Unauthorized`
 - 带有效 Token：返回当前登录用户信息
+
+示例成功响应：
+
+```json
+{
+  "code": 0,
+  "message": "OK",
+  "data": {
+    "userId": 1,
+    "username": "alice",
+    "authorities": [
+      { "authority": "ROLE_USER" }
+    ]
+  }
+}
+```
 
 ### 5) Postman 测试建议
 
