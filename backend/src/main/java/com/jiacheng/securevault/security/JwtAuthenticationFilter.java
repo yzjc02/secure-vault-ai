@@ -1,5 +1,6 @@
 package com.jiacheng.securevault.security;
 
+import tools.jackson.databind.ObjectMapper;
 import com.jiacheng.securevault.common.ApiResponse;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;

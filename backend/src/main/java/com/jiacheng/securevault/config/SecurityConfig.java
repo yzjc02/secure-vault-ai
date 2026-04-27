@@ -3,6 +3,7 @@ package com.jiacheng.securevault.config;
 import com.jiacheng.securevault.security.CustomUserDetailsService;
 import com.jiacheng.securevault.security.JwtAuthenticationFilter;
 import com.jiacheng.securevault.common.ApiResponse;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
