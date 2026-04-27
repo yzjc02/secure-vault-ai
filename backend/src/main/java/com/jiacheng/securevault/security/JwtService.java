@@ -23,13 +23,14 @@ public class JwtService {
 
     public JwtService(@Value("${jwt.secret}") String secret,
                       @Value("${jwt.expiration}") long expiration) {
-        if (secret == null || secret.isBlank()) {
-            throw new IllegalStateException("JWT_SECRET is required");
+        if (secret == null || secret.trim().isEmpty()) {
+            throw new IllegalStateException("JWT_SECRET must be configured and at least 64 bytes long");
         }
-        if (secret.length() < 64) {
-            throw new IllegalStateException("JWT_SECRET must be at least 64 characters");
+        byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
+        if (keyBytes.length < 64) {
+            throw new IllegalStateException("JWT_SECRET must be configured and at least 64 bytes long");
         }
-        this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.secretKey = Keys.hmacShaKeyFor(keyBytes);
         this.expiration = expiration;
     }
 
