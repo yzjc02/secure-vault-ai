@@ -1,153 +1,115 @@
-# Secure Vault AI
+# Secure Vault AI Backend (Module 1)
 
-Secure Vault AI is a backend project for a secure document vault with AI-assisted features planned for later stages.
+当前仅完成第一模块：**用户注册、登录、JWT 鉴权、当前用户识别**。
 
-## Current Backend Module
+> 未完成文档上传、RAG、Ollama、向量检索、文件解析、pgvector 等后续模块。
 
-The current completed backend module focuses on authentication and authorization:
-
-- User registration
-- User login
-- JWT-based authentication
-
-The project does not currently claim completed document upload, document parsing, vector search, or RAG features.
-
-## Tech Stack
+## 技术栈
 
 - Java 17
-- Spring Boot
+- Spring Boot 4.0.6
 - Spring Security
 - Spring Data JPA
-- PostgreSQL
 - JWT
 
-## Local Setup
+## 启动前配置
 
-### Prerequisites
+JWT 密钥必须通过环境变量注入，**不要把真实 JWT_SECRET 提交到 GitHub**。
 
-- Java 17
-- Maven, or the included Maven wrapper
-- PostgreSQL
+### Windows PowerShell
 
-### 1. Create the Database
-
-Run the following SQL in PostgreSQL:
-
-```sql
-CREATE DATABASE secure_vault_ai;
-
-CREATE USER secure_vault_user WITH PASSWORD 'change_me';
-
-GRANT ALL PRIVILEGES ON DATABASE secure_vault_ai TO secure_vault_user;
-
-\c secure_vault_ai
-
-GRANT ALL ON SCHEMA public TO secure_vault_user;
+```powershell
+$env:JWT_SECRET="replace-with-at-least-64-character-random-secret"
+$env:JWT_EXPIRATION="86400000"
 ```
 
-### 2. Configure the Backend
-
-Update `src/main/resources/application.properties` with your local database credentials and JWT settings.
-
-Example:
-
-```properties
-spring.application.name=backend
-
-spring.datasource.url=jdbc:postgresql://localhost:5432/secure_vault_ai
-spring.datasource.username=secure_vault_user
-spring.datasource.password=change_me
-
-spring.jpa.hibernate.ddl-auto=update
-spring.jpa.show-sql=true
-spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect
-
-jwt.secret=replace_with_a_strong_secret_key
-jwt.expiration=86400000
-```
-
-### 3. Run the Application
-
-On macOS or Linux:
+### macOS / Linux
 
 ```bash
+export JWT_SECRET="replace-with-at-least-64-character-random-secret"
+export JWT_EXPIRATION="86400000"
+```
+
+## 启动
+
+```bash
+cd backend
 ./mvnw spring-boot:run
 ```
 
-On Windows:
+Windows:
 
 ```powershell
+cd backend
 .\mvnw.cmd spring-boot:run
 ```
 
-By default, the backend runs at:
+## API（第一模块）
+
+### 1) 注册
+
+- **POST** `/api/auth/register`
+- Body:
+
+```json
+{
+  "username": "alice",
+  "email": "alice@example.com",
+  "password": "Password123"
+}
+```
+
+### 2) 登录
+
+- **POST** `/api/auth/login`
+- Body（使用 `username + password`）:
+
+```json
+{
+  "username": "alice",
+  "password": "Password123"
+}
+```
+
+成功响应示例：
+
+```json
+{
+  "code": 0,
+  "message": "OK",
+  "data": {
+    "token": "<JWT_TOKEN>",
+    "tokenType": "Bearer"
+  }
+}
+```
+
+### 3) 当前用户
+
+- **GET** `/api/test/me`
+- Header:
 
 ```text
-http://localhost:8080
+Authorization: Bearer <JWT_TOKEN>
 ```
 
-## API Examples
+预期结果：
+- 不带 token：`401 Unauthorized`
+- 错误 token：`401 Unauthorized`
+- 正确 token：`200 OK`
 
-The examples below assume the authentication endpoints are exposed under `/api/auth`.
-
-### Register
-
-```bash
-curl -X POST http://localhost:8080/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "username": "demo_user",
-    "email": "demo@example.com",
-    "password": "StrongPassword123!"
-  }'
-```
-
-Example response:
+成功响应示例：
 
 ```json
 {
-  "message": "User registered successfully"
+  "code": 0,
+  "message": "OK",
+  "data": {
+    "userId": 1,
+    "username": "alice",
+    "authorities": [
+      { "authority": "ROLE_USER" }
+    ]
+  }
 }
 ```
-
-### Login
-
-```bash
-curl -X POST http://localhost:8080/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "demo@example.com",
-    "password": "StrongPassword123!"
-  }'
-```
-
-Example response:
-
-```json
-{
-  "token": "eyJhbGciOiJIUzI1NiJ9..."
-}
-```
-
-### Access a Protected Endpoint with JWT
-
-Use the token returned by the login endpoint as a Bearer token.
-
-```bash
-curl -X GET http://localhost:8080/api/users/me \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9..."
-```
-
-Replace `/api/users/me` with any protected endpoint in the backend.
-
-## Planned Features
-
-- Document upload
-- Document parsing
-- Vector search
-- RAG question answering
-- Docker deployment
-
-## Project Status
-
-This repository is currently focused on the backend authentication foundation. Future modules will extend the system into secure document management and AI-assisted retrieval.
