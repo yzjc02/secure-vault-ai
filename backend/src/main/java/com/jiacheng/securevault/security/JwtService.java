@@ -3,7 +3,6 @@ package com.jiacheng.securevault.security;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
@@ -21,17 +20,17 @@ public class JwtService {
     private final SecretKey secretKey;
     private final long expiration;
 
-    public JwtService(@Value("${jwt.secret}") String secret,
-                      @Value("${jwt.expiration}") long expiration) {
+    public JwtService(JwtProperties jwtProperties) {
+        String secret = jwtProperties.getSecret();
         if (secret == null || secret.trim().isEmpty()) {
-            throw new IllegalStateException("JWT_SECRET must be configured and at least 64 bytes long");
+            throw new IllegalStateException("JWT_SECRET is required and must be at least 64 bytes. Run scripts/setup.ps1 or configure it in production secrets.");
         }
         byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
         if (keyBytes.length < 64) {
-            throw new IllegalStateException("JWT_SECRET must be configured and at least 64 bytes long");
+            throw new IllegalStateException("JWT_SECRET is required and must be at least 64 bytes. Run scripts/setup.ps1 or configure it in production secrets.");
         }
         this.secretKey = Keys.hmacShaKeyFor(keyBytes);
-        this.expiration = expiration;
+        this.expiration = jwtProperties.getExpiration();
     }
 
     public String generateToken(UserDetails userDetails) {

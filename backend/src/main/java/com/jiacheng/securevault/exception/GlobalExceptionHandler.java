@@ -1,6 +1,7 @@
 package com.jiacheng.securevault.exception;
 
 import com.jiacheng.securevault.common.ApiResponse;
+import com.jiacheng.securevault.config.EncodingConfig;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -24,36 +25,42 @@ public class GlobalExceptionHandler {
                 .map(FieldError::getDefaultMessage)
                 .collect(Collectors.joining("; "));
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .contentType(EncodingConfig.APPLICATION_JSON_UTF8)
                 .body(ApiResponse.fail(400, message));
     }
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException ex) {
         return ResponseEntity.status(resolveStatus(ex.getCode()))
+                .contentType(EncodingConfig.APPLICATION_JSON_UTF8)
                 .body(ApiResponse.fail(ex.getCode(), ex.getMessage()));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiResponse<Void>> handleHttpMessageNotReadableException(HttpMessageNotReadableException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .contentType(EncodingConfig.APPLICATION_JSON_UTF8)
                 .body(ApiResponse.fail(400, "请求体格式错误"));
     }
 
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ApiResponse<Void>> handleAuthenticationException(AuthenticationException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .contentType(EncodingConfig.APPLICATION_JSON_UTF8)
                 .body(ApiResponse.fail(401, "Unauthorized"));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleAccessDeniedException(AccessDeniedException ex) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .contentType(EncodingConfig.APPLICATION_JSON_UTF8)
                 .body(ApiResponse.fail(403, "Forbidden"));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleException(Exception ex) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .contentType(EncodingConfig.APPLICATION_JSON_UTF8)
                 .body(ApiResponse.fail(500, "服务器内部错误"));
     }
 
@@ -61,6 +68,7 @@ public class GlobalExceptionHandler {
         return switch (code) {
             case 400 -> HttpStatus.BAD_REQUEST;
             case 401 -> HttpStatus.UNAUTHORIZED;
+            case 404 -> HttpStatus.NOT_FOUND;
             case 403 -> HttpStatus.FORBIDDEN;
             default -> HttpStatus.INTERNAL_SERVER_ERROR;
         };

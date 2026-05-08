@@ -2,6 +2,127 @@
 
 Privacy-first personal knowledge vault powered by Spring Boot + RAG + Ollama.
 
+## 快速启动
+
+### Windows
+
+1. 安装 Docker Desktop。
+2. 克隆项目并进入项目根目录。
+3. 执行初始化脚本：
+
+```powershell
+.\scripts\setup.ps1
+```
+
+4. 启动服务：
+
+```powershell
+docker compose up -d
+```
+
+如果修改过 Dockerfile、依赖或 Compose 配置，建议重建：
+
+```powershell
+docker compose down
+docker compose up -d --build
+docker compose ps
+docker compose logs backend --tail=200
+```
+
+5. 访问后端接口，例如：
+
+```powershell
+curl.exe -i http://localhost:8080/api/documents
+```
+
+未携带 JWT 时，受保护接口应返回 `401`。
+
+### Linux / macOS
+
+```bash
+chmod +x scripts/setup.sh
+./scripts/setup.sh
+docker compose up -d
+```
+
+重建和查看日志：
+
+```bash
+docker compose down
+docker compose up -d --build
+docker compose ps
+docker compose logs backend --tail=200
+```
+
+### 本机配置与密钥说明
+
+- `.env` 是本机私有配置，已经在 `.gitignore` 中忽略，不要提交。
+- `.env.example` 只包含示例值，不包含真实密钥。
+- `JWT_SECRET` 会由 setup 脚本自动生成，生成后不会打印到控制台。
+- 生产环境应该使用服务器环境变量、CI/CD Secret 或 Docker secrets 注入密钥。
+- 如果启动失败提示 `JWT_SECRET is required and must be at least 64 bytes...`，说明没有运行 setup 脚本，或生产环境没有配置 secret。
+
+## Windows PowerShell 接口测试建议
+
+复杂 JSON 或包含中文的请求，推荐使用 PowerShell 7，并先设置控制台和管道输出为 UTF-8：
+
+```powershell
+chcp 65001
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+```
+
+复杂 JSON 或包含中文的请求，推荐使用 `Invoke-WebRequest` / `Invoke-RestMethod`，请求体用 `ConvertTo-Json -Compress` 生成后转为 UTF-8 bytes，并显式指定 `application/json; charset=utf-8`。
+
+```powershell
+$registerBody = @{
+  username = "alice"
+  email = "alice@example.com"
+  password = "Password123"
+} | ConvertTo-Json -Compress
+
+Invoke-WebRequest `
+  -Method POST `
+  -Uri "http://localhost:8080/api/auth/register" `
+  -ContentType "application/json; charset=utf-8" `
+  -Body $registerBody
+
+$loginBody = @{
+  username = "alice"
+  password = "Password123"
+} | ConvertTo-Json -Compress
+
+$loginResponse = Invoke-RestMethod `
+  -Method POST `
+  -Uri "http://localhost:8080/api/auth/login" `
+  -ContentType "application/json; charset=utf-8" `
+  -Body $loginBody
+
+$token = $loginResponse.data.token
+
+$documentBody = @{
+  title = "Spring Security 学习笔记"
+  description = "记录模块一 JWT 鉴权流程"
+} | ConvertTo-Json -Compress
+
+$documentBytes = [System.Text.Encoding]::UTF8.GetBytes($documentBody)
+
+Invoke-RestMethod `
+  -Method POST `
+  -Uri "http://localhost:8080/api/documents" `
+  -Headers @{ Authorization = "Bearer $token" } `
+  -ContentType "application/json; charset=utf-8" `
+  -Body $documentBytes
+```
+
+不推荐在复杂 JSON 场景下使用 `curl.exe -d $body`，PowerShell 可能会影响参数传递或多行 JSON，导致后端收到的请求体不是预期 JSON。
+
+如果看到 `å`、`è`、`ç` 等字符，通常表示 UTF-8 字节被错误按 Latin-1 或 Windows-1252 解码。后端已经强制请求/响应 UTF-8，并有自动化测试覆盖中文创建、列表读取和错误响应。PostgreSQL 新库默认应为 UTF8，可用以下命令检查：
+
+```powershell
+docker compose exec postgres psql -U securevault_user -d securevault -c "SHOW SERVER_ENCODING;"
+```
+
 ## Backend Module 1: 用户注册 / 登录 / JWT 鉴权
 
 后端目录：`backend`
@@ -117,3 +238,66 @@ Authorization: Bearer <JWT_TOKEN>
 4. 建立 `me` 请求（GET），Header 设置：
    - `Authorization: Bearer {{jwt_token}}`
 5. 先不带 Header 调一次验证 401，再带 Header 验证成功。
+
+## Backend Module 2: 文档记录管理
+
+模块二新增登录用户的私有文档记录 CRUD。所有文档操作都基于当前 JWT 认证身份解析出的 `userId`，前端不能传 `userId`，接口响应也不会返回 `userId`。
+
+本模块暂不包含真实文件上传、文档解析、向量检索、Embedding、Ollama 和 RAG。
+
+### 接口列表
+
+- **POST** `http://localhost:8080/api/documents`：创建文档记录
+- **GET** `http://localhost:8080/api/documents`：查询当前用户文档列表
+- **GET** `http://localhost:8080/api/documents/{id}`：查询当前用户文档详情
+- **PUT** `http://localhost:8080/api/documents/{id}`：修改当前用户文档
+- **DELETE** `http://localhost:8080/api/documents/{id}`：删除当前用户文档
+
+### 认证方式
+
+```text
+Authorization: Bearer <token>
+```
+
+### 创建文档
+
+```powershell
+curl.exe -X POST "http://localhost:8080/api/documents" `
+  -H "Authorization: Bearer <token>" `
+  -H "Content-Type: application/json" `
+  -d "{\"title\":\"Spring Security 学习笔记\",\"description\":\"记录模块一 JWT 鉴权流程\"}"
+```
+
+### 查询文档列表
+
+```powershell
+curl.exe -X GET "http://localhost:8080/api/documents" `
+  -H "Authorization: Bearer <token>"
+```
+
+### 查询文档详情
+
+```powershell
+curl.exe -X GET "http://localhost:8080/api/documents/1" `
+  -H "Authorization: Bearer <token>"
+```
+
+### 修改文档
+
+```powershell
+curl.exe -X PUT "http://localhost:8080/api/documents/1" `
+  -H "Authorization: Bearer <token>" `
+  -H "Content-Type: application/json" `
+  -d "{\"title\":\"新的标题\",\"description\":\"新的描述\"}"
+```
+
+### 删除文档
+
+```powershell
+curl.exe -X DELETE "http://localhost:8080/api/documents/1" `
+  -H "Authorization: Bearer <token>"
+```
+
+### 权限隔离说明
+
+文档详情、修改、删除都会使用 `documentId + currentUserId` 查询。文档不存在或文档不属于当前登录用户时，统一返回 `404` 和 `文档不存在`，避免资源枚举。
