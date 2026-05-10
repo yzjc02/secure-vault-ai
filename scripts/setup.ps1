@@ -42,6 +42,7 @@ POSTGRES_PASSWORD=$postgresPassword
 JWT_SECRET=$jwtSecret
 JWT_EXPIRATION=86400000
 FILE_STORAGE_DIR=/app/data/uploads
+MAX_FILE_SIZE=20971520
 "@
 
 [System.IO.File]::WriteAllText($envPath, $content + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))

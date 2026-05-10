@@ -6,6 +6,7 @@ import com.jiacheng.securevault.document.dto.DocumentResponse;
 import com.jiacheng.securevault.document.dto.DocumentUpdateRequest;
 import com.jiacheng.securevault.document.service.DocumentService;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -13,7 +14,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -30,6 +33,12 @@ public class DocumentController {
     @PostMapping
     public ApiResponse<DocumentResponse> create(@Valid @RequestBody DocumentCreateRequest request) {
         return ApiResponse.success(documentService.create(request));
+    }
+
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<DocumentResponse> upload(@RequestParam("file") MultipartFile file,
+                                                @RequestParam(value = "title", required = false) String title) {
+        return ApiResponse.success(documentService.upload(file, title));
     }
 
     @GetMapping

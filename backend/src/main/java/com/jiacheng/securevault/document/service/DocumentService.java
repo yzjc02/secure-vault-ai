@@ -9,6 +9,8 @@ import com.jiacheng.securevault.exception.BusinessException;
 import com.jiacheng.securevault.security.CurrentUserService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -20,11 +22,14 @@ public class DocumentService {
 
     private final DocumentRepository documentRepository;
     private final CurrentUserService currentUserService;
+    private final FileStorageService fileStorageService;
 
     public DocumentService(DocumentRepository documentRepository,
-                           CurrentUserService currentUserService) {
+                           CurrentUserService currentUserService,
+                           FileStorageService fileStorageService) {
         this.documentRepository = documentRepository;
         this.currentUserService = currentUserService;
+        this.fileStorageService = fileStorageService;
     }
 
     @Transactional
@@ -40,6 +45,31 @@ public class DocumentService {
         document.setStatus(Document.STATUS_CREATED);
 
         return toResponse(documentRepository.save(document));
+    }
+
+    @Transactional
+    public DocumentResponse upload(MultipartFile file, String title) {
+        Long currentUserId = currentUserService.getCurrentUserId();
+        FileStorageService.StoredFile storedFile = fileStorageService.store(file);
+
+        Document document = new Document();
+        document.setUserId(currentUserId);
+        document.setTitle(normalizeUploadTitle(title, storedFile.originalFilename()));
+        document.setDescription(null);
+        document.setStatus(Document.STATUS_UPLOADED);
+        document.setOriginalFilename(storedFile.originalFilename());
+        document.setStoredFilename(storedFile.storedFilename());
+        document.setFilePath(storedFile.filePath());
+        document.setFileType(storedFile.fileType());
+        document.setFileSize(storedFile.fileSize());
+        document.setContentType(storedFile.contentType());
+
+        try {
+            return toResponse(documentRepository.save(document));
+        } catch (RuntimeException ex) {
+            fileStorageService.delete(storedFile.storedFilename());
+            throw ex;
+        }
     }
 
     @Transactional(readOnly = true)
@@ -70,6 +100,7 @@ public class DocumentService {
     public void delete(Long id) {
         Long currentUserId = currentUserService.getCurrentUserId();
         Document document = getOwnedDocument(id, currentUserId);
+        fileStorageService.delete(document.getStoredFilename());
         documentRepository.delete(document);
     }
 
@@ -89,6 +120,13 @@ public class DocumentService {
         return normalized;
     }
 
+    private String normalizeUploadTitle(String title, String originalFilename) {
+        if (!StringUtils.hasText(title)) {
+            return normalizeTitle(originalFilename);
+        }
+        return normalizeTitle(title);
+    }
+
     private String normalizeDescription(String description) {
         if (description == null) {
             return null;
@@ -106,6 +144,12 @@ public class DocumentService {
                 document.getTitle(),
                 document.getDescription(),
                 document.getStatus(),
+                document.getOriginalFilename(),
+                document.getStoredFilename(),
+                document.getFileType(),
+                document.getFileSize(),
+                document.getContentType(),
+                document.getErrorMessage(),
                 document.getCreatedAt(),
                 document.getUpdatedAt()
         );

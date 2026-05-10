@@ -2,6 +2,58 @@
 
 Privacy-first personal knowledge vault powered by Spring Boot + RAG + Ollama.
 
+## Backend Module 3: 真实文件上传与本地存储
+
+模块三在现有文档 CRUD 基础上新增真实文件上传。登录用户可以上传 `pdf`、`docx`、`txt`、`md`、`markdown` 文件，后端会生成安全的 UUID 文件名，把文件保存到本地上传目录，并把文件元数据记录到 `documents` 表。
+
+### 功能说明
+
+- 上传接口：**POST** `/api/documents/upload`
+- 认证方式：`Authorization: Bearer <token>`
+- 请求类型：`multipart/form-data`
+- 表单字段：
+  - `file`：必填，上传文件。
+  - `title`：可选，自定义标题；为空时默认使用原始文件名。
+- 默认最大文件大小：`20MB`，可通过 `MAX_FILE_SIZE=20971520` 覆盖。
+- 默认本地上传目录：`./data/uploads`，Docker 环境默认 `FILE_STORAGE_DIR=/app/data/uploads`。
+- 删除文档时，如果该文档有关联上传文件，会同步删除本地文件。
+- API 响应会返回 `originalFilename`、`storedFilename`、`fileType`、`fileSize`、`contentType` 等元数据，不会暴露服务器真实 `filePath`。
+
+### Windows PowerShell 上传示例
+
+```powershell
+$token = "你的 JWT"
+$form = @{
+  file = Get-Item ".\test-files\demo.txt"
+  title = "我的测试文档"
+}
+
+Invoke-RestMethod `
+  -Uri "http://localhost:8080/api/documents/upload" `
+  -Method Post `
+  -Headers @{ Authorization = "Bearer $token" } `
+  -Form $form
+```
+
+### curl 上传示例
+
+```powershell
+curl.exe -X POST "http://localhost:8080/api/documents/upload" ^
+  -H "Authorization: Bearer <token>" ^
+  -F "file=@demo.txt" ^
+  -F "title=我的测试文档"
+```
+
+### Docker Compose 持久化
+
+Docker Compose 下 backend 服务会挂载 `uploads` volume 到 `/app/data/uploads`，容器重建后上传文件不会丢失。`postgres-data` volume 仍用于 PostgreSQL 数据持久化。
+
+### 提交注意事项
+
+- 不要提交 `.env`。
+- 不要提交 `uploads/`、`data/uploads/`、`backend/data/uploads/` 等运行时上传目录。
+- `.env.example` 只保留示例配置，可以提交。
+
 ## 快速启动
 
 ### Windows

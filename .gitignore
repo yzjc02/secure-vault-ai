@@ -35,3 +35,8 @@ replay_pid*
 # Build output
 target/
 backend/target/
+
+# Runtime uploads
+uploads/
+data/uploads/
+backend/data/uploads/

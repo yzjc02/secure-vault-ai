@@ -8,6 +8,12 @@ public class DocumentResponse {
     private String title;
     private String description;
     private String status;
+    private String originalFilename;
+    private String storedFilename;
+    private String fileType;
+    private Long fileSize;
+    private String contentType;
+    private String errorMessage;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -18,12 +24,24 @@ public class DocumentResponse {
                             String title,
                             String description,
                             String status,
+                            String originalFilename,
+                            String storedFilename,
+                            String fileType,
+                            Long fileSize,
+                            String contentType,
+                            String errorMessage,
                             LocalDateTime createdAt,
                             LocalDateTime updatedAt) {
         this.id = id;
         this.title = title;
         this.description = description;
         this.status = status;
+        this.originalFilename = originalFilename;
+        this.storedFilename = storedFilename;
+        this.fileType = fileType;
+        this.fileSize = fileSize;
+        this.contentType = contentType;
+        this.errorMessage = errorMessage;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -36,6 +54,18 @@ public class DocumentResponse {
     public void setDescription(String description) { this.description = description; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public String getOriginalFilename() { return originalFilename; }
+    public void setOriginalFilename(String originalFilename) { this.originalFilename = originalFilename; }
+    public String getStoredFilename() { return storedFilename; }
+    public void setStoredFilename(String storedFilename) { this.storedFilename = storedFilename; }
+    public String getFileType() { return fileType; }
+    public void setFileType(String fileType) { this.fileType = fileType; }
+    public Long getFileSize() { return fileSize; }
+    public void setFileSize(Long fileSize) { this.fileSize = fileSize; }
+    public String getContentType() { return contentType; }
+    public void setContentType(String contentType) { this.contentType = contentType; }
+    public String getErrorMessage() { return errorMessage; }
+    public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
