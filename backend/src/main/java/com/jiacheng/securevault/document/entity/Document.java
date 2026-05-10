@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
+import jakarta.persistence.Lob;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -20,6 +21,9 @@ public class Document {
 
     public static final String STATUS_CREATED = "CREATED";
     public static final String STATUS_UPLOADED = "UPLOADED";
+    public static final String STATUS_PARSING = "PARSING";
+    public static final String STATUS_PARSED = "PARSED";
+    public static final String STATUS_FAILED = "FAILED";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -57,6 +61,16 @@ public class Document {
 
     @Column(name = "error_message", length = 1000)
     private String errorMessage;
+
+    @Lob
+    @Column(name = "extracted_text", columnDefinition = "TEXT")
+    private String extractedText;
+
+    @Column(name = "text_length")
+    private Integer textLength;
+
+    @Column(name = "parsed_at")
+    private LocalDateTime parsedAt;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
@@ -103,6 +117,12 @@ public class Document {
     public void setContentType(String contentType) { this.contentType = contentType; }
     public String getErrorMessage() { return errorMessage; }
     public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
+    public String getExtractedText() { return extractedText; }
+    public void setExtractedText(String extractedText) { this.extractedText = extractedText; }
+    public Integer getTextLength() { return textLength; }
+    public void setTextLength(Integer textLength) { this.textLength = textLength; }
+    public LocalDateTime getParsedAt() { return parsedAt; }
+    public void setParsedAt(LocalDateTime parsedAt) { this.parsedAt = parsedAt; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

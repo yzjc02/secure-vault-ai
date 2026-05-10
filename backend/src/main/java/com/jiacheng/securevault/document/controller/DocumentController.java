@@ -3,7 +3,9 @@ package com.jiacheng.securevault.document.controller;
 import com.jiacheng.securevault.common.ApiResponse;
 import com.jiacheng.securevault.document.dto.DocumentCreateRequest;
 import com.jiacheng.securevault.document.dto.DocumentResponse;
+import com.jiacheng.securevault.document.dto.DocumentTextResponse;
 import com.jiacheng.securevault.document.dto.DocumentUpdateRequest;
+import com.jiacheng.securevault.document.service.DocumentParsingService;
 import com.jiacheng.securevault.document.service.DocumentService;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
@@ -25,9 +27,12 @@ import java.util.List;
 public class DocumentController {
 
     private final DocumentService documentService;
+    private final DocumentParsingService documentParsingService;
 
-    public DocumentController(DocumentService documentService) {
+    public DocumentController(DocumentService documentService,
+                              DocumentParsingService documentParsingService) {
         this.documentService = documentService;
+        this.documentParsingService = documentParsingService;
     }
 
     @PostMapping
@@ -49,6 +54,16 @@ public class DocumentController {
     @GetMapping("/{id}")
     public ApiResponse<DocumentResponse> get(@PathVariable Long id) {
         return ApiResponse.success(documentService.get(id));
+    }
+
+    @PostMapping("/{id}/parse")
+    public ApiResponse<DocumentResponse> parse(@PathVariable Long id) {
+        return ApiResponse.success(documentParsingService.parse(id));
+    }
+
+    @GetMapping("/{id}/text")
+    public ApiResponse<DocumentTextResponse> getText(@PathVariable Long id) {
+        return ApiResponse.success(documentParsingService.getText(id));
     }
 
     @PutMapping("/{id}")

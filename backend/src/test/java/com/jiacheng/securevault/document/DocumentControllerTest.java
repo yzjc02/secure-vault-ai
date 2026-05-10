@@ -25,8 +25,10 @@ import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -256,17 +258,98 @@ class DocumentControllerTest {
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.title").value("notes.txt"))
                 .andExpect(jsonPath("$.data.description", nullValue()))
-                .andExpect(jsonPath("$.data.status").value("UPLOADED"))
+                .andExpect(jsonPath("$.data.status").value("PARSED"))
                 .andExpect(jsonPath("$.data.originalFilename").value("notes.txt"))
                 .andExpect(jsonPath("$.data.storedFilename").value(containsString(".txt")))
                 .andExpect(jsonPath("$.data.fileType").value("txt"))
                 .andExpect(jsonPath("$.data.fileSize").value(5))
                 .andExpect(jsonPath("$.data.contentType").value(MediaType.TEXT_PLAIN_VALUE))
+                .andExpect(jsonPath("$.data.textLength").value(5))
+                .andExpect(jsonPath("$.data.parsedAt", notNullValue()))
+                .andExpect(jsonPath("$.data.errorMessage", nullValue()))
                 .andExpect(jsonPath("$.data.filePath").doesNotExist())
                 .andReturn();
 
         String storedFilename = extractString(result.getResponse().getContentAsString(), "storedFilename");
+        long docId = extractLong(result.getResponse().getContentAsString(), "id");
         assertThat(Files.exists(fileStorageService.getUploadRoot().resolve(storedFilename))).isTrue();
+
+        mockMvc.perform(get("/api/documents/{id}/text", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.status").value("PARSED"))
+                .andExpect(jsonPath("$.data.textLength").value(5))
+                .andExpect(jsonPath("$.data.extractedText").value("hello"))
+                .andExpect(jsonPath("$.data.filePath").doesNotExist());
+    }
+
+    @Test
+    void shouldAutoParseMarkdownFileForLoginUser() throws Exception {
+        String token = registerAndLogin("alice");
+
+        MvcResult result = mockMvc.perform(multipart("/api/documents/upload")
+                        .file(markdownFile("notes.md", "# T\nbody"))
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("PARSED"))
+                .andExpect(jsonPath("$.data.fileType").value("md"))
+                .andExpect(jsonPath("$.data.textLength", greaterThan(0)))
+                .andReturn();
+
+        long docId = extractLong(result.getResponse().getContentAsString(), "id");
+        mockMvc.perform(get("/api/documents/{id}/text", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.extractedText").value(containsString("body")));
+    }
+
+    @Test
+    void listDocumentsShouldNotReturnExtractedTextFullContent() throws Exception {
+        String token = registerAndLogin("alice");
+        uploadDocument(token, "secret.txt", "secretContent123");
+
+        MvcResult result = mockMvc.perform(get("/api/documents")
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].status").value("PARSED"))
+                .andExpect(jsonPath("$.data[0].textLength").value(16))
+                .andExpect(jsonPath("$.data[0].parsedAt", notNullValue()))
+                .andExpect(jsonPath("$.data[0].extractedText").doesNotExist())
+                .andExpect(jsonPath("$.data[0].filePath").doesNotExist())
+                .andReturn();
+
+        assertThat(result.getResponse().getContentAsString()).doesNotContain("secretContent123");
+    }
+
+    @Test
+    void getDocumentDetailShouldReturnPreviewButNotFullExtractedText() throws Exception {
+        String token = registerAndLogin("alice");
+        long docId = uploadDocument(token, "secret.txt", "secretContent123");
+
+        mockMvc.perform(get("/api/documents/{id}", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("PARSED"))
+                .andExpect(jsonPath("$.data.textLength").value(16))
+                .andExpect(jsonPath("$.data.extractedTextPreview").value("secretContent123"))
+                .andExpect(jsonPath("$.data.extractedText").doesNotExist())
+                .andExpect(jsonPath("$.data.filePath").doesNotExist());
+    }
+
+    @Test
+    void shouldManuallyReparseOwnUploadedDocument() throws Exception {
+        String token = registerAndLogin("alice");
+        long docId = uploadDocument(token, "notes.txt", "hello");
+
+        mockMvc.perform(post("/api/documents/{id}/parse", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.status").value("PARSED"))
+                .andExpect(jsonPath("$.data.textLength").value(5))
+                .andExpect(jsonPath("$.data.errorMessage", nullValue()))
+                .andExpect(jsonPath("$.data.filePath").doesNotExist());
     }
 
     @Test
@@ -301,6 +384,63 @@ class DocumentControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(404))
                 .andExpect(jsonPath("$.message").value("文档不存在"));
+
+        mockMvc.perform(get("/api/documents/{id}/text", docA)
+                        .header("Authorization", bearer(tokenB)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(404))
+                .andExpect(jsonPath("$.message").value("文档不存在"));
+
+        mockMvc.perform(post("/api/documents/{id}/parse", docA)
+                        .header("Authorization", bearer(tokenB)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(404))
+                .andExpect(jsonPath("$.message").value("文档不存在"));
+    }
+
+    @Test
+    void shouldReturn401WhenParseOrReadTextWithoutToken() throws Exception {
+        mockMvc.perform(post("/api/documents/{id}/parse", 1L))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(401));
+
+        mockMvc.perform(get("/api/documents/{id}/text", 1L))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(401));
+    }
+
+    @Test
+    void shouldReturn400WhenParsingCreatedDocumentWithoutFile() throws Exception {
+        String token = registerAndLogin("alice");
+        long docId = createDocument(token, "Plain Record");
+
+        mockMvc.perform(post("/api/documents/{id}/parse", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
+                .andExpect(jsonPath("$.message").value("该文档没有可解析的上传文件"));
+    }
+
+    @Test
+    void shouldMarkFailedWhenLocalUploadedFileIsMissing() throws Exception {
+        String token = registerAndLogin("alice");
+        long docId = uploadDocument(token, "notes.txt", "hello");
+        Document document = documentRepository.findById(docId).orElseThrow();
+        Files.deleteIfExists(fileStorageService.getUploadRoot().resolve(document.getStoredFilename()));
+
+        mockMvc.perform(post("/api/documents/{id}/parse", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.status").value("FAILED"))
+                .andExpect(jsonPath("$.data.errorMessage").value("本地文件不存在"))
+                .andExpect(jsonPath("$.data.textLength").value(0))
+                .andExpect(jsonPath("$.data.parsedAt", notNullValue()))
+                .andExpect(jsonPath("$.data.filePath").doesNotExist());
+
+        Document failedDocument = documentRepository.findById(docId).orElseThrow();
+        assertThat(failedDocument.getStatus()).isEqualTo("FAILED");
+        assertThat(failedDocument.getErrorMessage()).isEqualTo("本地文件不存在");
     }
 
     @Test
@@ -485,6 +625,11 @@ class DocumentControllerTest {
 
     private MockMultipartFile textFile(String filename, String content) {
         return new MockMultipartFile("file", filename, MediaType.TEXT_PLAIN_VALUE,
+                content.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private MockMultipartFile markdownFile(String filename, String content) {
+        return new MockMultipartFile("file", filename, "text/markdown",
                 content.getBytes(StandardCharsets.UTF_8));
     }
 

@@ -54,6 +54,97 @@ Docker Compose 下 backend 服务会挂载 `uploads` volume 到 `/app/data/uploa
 - 不要提交 `uploads/`、`data/uploads/`、`backend/data/uploads/` 等运行时上传目录。
 - `.env.example` 只保留示例配置，可以提交。
 
+## Backend Module 4: 文档解析与文本抽取
+
+模块四在文件上传基础上新增文档文本抽取。登录用户上传 `pdf`、`docx`、`txt`、`md`、`markdown` 后，后端会同步解析文件、保存纯文本、记录文本长度和解析时间，并维护 `PARSING` / `PARSED` / `FAILED` 状态。解析失败只更新文档状态和 `errorMessage`，不会删除数据库记录或本地文件。
+
+### 功能说明
+
+- 支持 PDF、DOCX、TXT、Markdown 文本抽取。
+- 上传成功后自动解析，`POST /api/documents/upload` 返回解析后的文档状态。
+- 支持手动重新解析：**POST** `/api/documents/{id}/parse`。
+- 支持查看完整解析文本：**GET** `/api/documents/{id}/text`。
+- 列表和详情接口不会返回完整 `extractedText`，详情最多返回 `extractedTextPreview`。
+- API 响应不会返回服务器真实 `filePath`。
+
+### 手动重新解析
+
+```powershell
+curl.exe -X POST "http://localhost:8080/api/documents/1/parse" `
+  -H "Authorization: Bearer <token>"
+```
+
+解析成功响应示例：
+
+```json
+{
+  "code": 0,
+  "message": "OK",
+  "data": {
+    "id": 1,
+    "title": "demo.txt",
+    "status": "PARSED",
+    "originalFilename": "demo.txt",
+    "fileType": "txt",
+    "textLength": 42,
+    "parsedAt": "2026-05-10T16:00:00",
+    "errorMessage": null
+  }
+}
+```
+
+解析失败响应示例：
+
+```json
+{
+  "code": 0,
+  "message": "OK",
+  "data": {
+    "id": 1,
+    "title": "demo.pdf",
+    "status": "FAILED",
+    "originalFilename": "demo.pdf",
+    "fileType": "pdf",
+    "textLength": 0,
+    "parsedAt": "2026-05-10T16:01:00",
+    "errorMessage": "未抽取到有效文本"
+  }
+}
+```
+
+### 获取完整解析文本
+
+```powershell
+curl.exe -X GET "http://localhost:8080/api/documents/1/text" `
+  -H "Authorization: Bearer <token>"
+```
+
+成功响应示例：
+
+```json
+{
+  "code": 0,
+  "message": "OK",
+  "data": {
+    "id": 1,
+    "title": "demo.txt",
+    "status": "PARSED",
+    "originalFilename": "demo.txt",
+    "fileType": "txt",
+    "textLength": 42,
+    "parsedAt": "2026-05-10T16:00:00",
+    "extractedText": "这里是完整解析文本。"
+  }
+}
+```
+
+### 范围说明
+
+- 本模块不做 chunking。
+- 本模块不做 embedding。
+- 本模块不做 RAG。
+- 下一模块才进入文本分块。
+
 ## 快速启动
 
 ### Windows

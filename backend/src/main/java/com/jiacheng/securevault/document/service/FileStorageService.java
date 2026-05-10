@@ -85,6 +85,23 @@ public class FileStorageService {
         return uploadRoot;
     }
 
+    public Path resolveStoredFile(String storedFilename, String filePath) {
+        Path target = resolveInsideUploadRoot(storedFilename);
+
+        if (!StringUtils.hasText(filePath)) {
+            throw new BusinessException(400, "文件路径非法");
+        }
+
+        Path recordedPath = Paths.get(filePath).toAbsolutePath().normalize();
+        if (!recordedPath.startsWith(uploadRoot)) {
+            throw new BusinessException(400, "文件路径非法");
+        }
+        if (!target.getFileName().equals(recordedPath.getFileName())) {
+            throw new BusinessException(400, "文件路径非法");
+        }
+        return target;
+    }
+
     private void validateFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException(400, "上传文件不能为空");

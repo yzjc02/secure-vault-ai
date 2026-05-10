@@ -23,13 +23,16 @@ public class DocumentService {
     private final DocumentRepository documentRepository;
     private final CurrentUserService currentUserService;
     private final FileStorageService fileStorageService;
+    private final DocumentParsingService documentParsingService;
 
     public DocumentService(DocumentRepository documentRepository,
                            CurrentUserService currentUserService,
-                           FileStorageService fileStorageService) {
+                           FileStorageService fileStorageService,
+                           DocumentParsingService documentParsingService) {
         this.documentRepository = documentRepository;
         this.currentUserService = currentUserService;
         this.fileStorageService = fileStorageService;
+        this.documentParsingService = documentParsingService;
     }
 
     @Transactional
@@ -65,7 +68,8 @@ public class DocumentService {
         document.setContentType(storedFile.contentType());
 
         try {
-            return toResponse(documentRepository.save(document));
+            Document savedDocument = documentRepository.save(document);
+            return documentParsingService.parseForUser(savedDocument.getId(), currentUserId);
         } catch (RuntimeException ex) {
             fileStorageService.delete(storedFile.storedFilename());
             throw ex;
@@ -77,7 +81,7 @@ public class DocumentService {
         Long currentUserId = currentUserService.getCurrentUserId();
         return documentRepository.findAllByUserIdOrderByCreatedAtDesc(currentUserId)
                 .stream()
-                .map(this::toResponse)
+                .map(document -> DocumentResponse.from(document, false))
                 .toList();
     }
 
@@ -139,19 +143,6 @@ public class DocumentService {
     }
 
     private DocumentResponse toResponse(Document document) {
-        return new DocumentResponse(
-                document.getId(),
-                document.getTitle(),
-                document.getDescription(),
-                document.getStatus(),
-                document.getOriginalFilename(),
-                document.getStoredFilename(),
-                document.getFileType(),
-                document.getFileSize(),
-                document.getContentType(),
-                document.getErrorMessage(),
-                document.getCreatedAt(),
-                document.getUpdatedAt()
-        );
+        return DocumentResponse.from(document, true);
     }
 }
