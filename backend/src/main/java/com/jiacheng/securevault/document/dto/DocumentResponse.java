@@ -18,6 +18,8 @@ public class DocumentResponse {
     private String errorMessage;
     private Integer textLength;
     private LocalDateTime parsedAt;
+    private Integer chunkCount;
+    private LocalDateTime chunkedAt;
     private String extractedTextPreview;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -37,6 +39,8 @@ public class DocumentResponse {
                             String errorMessage,
                             Integer textLength,
                             LocalDateTime parsedAt,
+                            Integer chunkCount,
+                            LocalDateTime chunkedAt,
                             String extractedTextPreview,
                             LocalDateTime createdAt,
                             LocalDateTime updatedAt) {
@@ -52,6 +56,8 @@ public class DocumentResponse {
         this.errorMessage = errorMessage;
         this.textLength = textLength;
         this.parsedAt = parsedAt;
+        this.chunkCount = chunkCount;
+        this.chunkedAt = chunkedAt;
         this.extractedTextPreview = extractedTextPreview;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
@@ -71,6 +77,8 @@ public class DocumentResponse {
                 document.getErrorMessage(),
                 document.getTextLength(),
                 document.getParsedAt(),
+                chunkCountOrZero(document),
+                document.getChunkedAt(),
                 includeTextPreview ? preview(document.getExtractedText()) : null,
                 document.getCreatedAt(),
                 document.getUpdatedAt()
@@ -83,6 +91,10 @@ public class DocumentResponse {
         }
         int previewLength = Math.min(extractedText.length(), 300);
         return extractedText.substring(0, previewLength);
+    }
+
+    private static Integer chunkCountOrZero(Document document) {
+        return document.getChunkCount() == null ? 0 : document.getChunkCount();
     }
 
     public Long getId() { return id; }
@@ -109,6 +121,10 @@ public class DocumentResponse {
     public void setTextLength(Integer textLength) { this.textLength = textLength; }
     public LocalDateTime getParsedAt() { return parsedAt; }
     public void setParsedAt(LocalDateTime parsedAt) { this.parsedAt = parsedAt; }
+    public Integer getChunkCount() { return chunkCount; }
+    public void setChunkCount(Integer chunkCount) { this.chunkCount = chunkCount; }
+    public LocalDateTime getChunkedAt() { return chunkedAt; }
+    public void setChunkedAt(LocalDateTime chunkedAt) { this.chunkedAt = chunkedAt; }
     public String getExtractedTextPreview() { return extractedTextPreview; }
     public void setExtractedTextPreview(String extractedTextPreview) { this.extractedTextPreview = extractedTextPreview; }
     public LocalDateTime getCreatedAt() { return createdAt; }

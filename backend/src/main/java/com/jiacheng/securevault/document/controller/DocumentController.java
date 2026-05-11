@@ -2,9 +2,11 @@ package com.jiacheng.securevault.document.controller;
 
 import com.jiacheng.securevault.common.ApiResponse;
 import com.jiacheng.securevault.document.dto.DocumentCreateRequest;
+import com.jiacheng.securevault.document.dto.DocumentChunkResponse;
 import com.jiacheng.securevault.document.dto.DocumentResponse;
 import com.jiacheng.securevault.document.dto.DocumentTextResponse;
 import com.jiacheng.securevault.document.dto.DocumentUpdateRequest;
+import com.jiacheng.securevault.document.service.DocumentChunkService;
 import com.jiacheng.securevault.document.service.DocumentParsingService;
 import com.jiacheng.securevault.document.service.DocumentService;
 import jakarta.validation.Valid;
@@ -28,11 +30,14 @@ public class DocumentController {
 
     private final DocumentService documentService;
     private final DocumentParsingService documentParsingService;
+    private final DocumentChunkService documentChunkService;
 
     public DocumentController(DocumentService documentService,
-                              DocumentParsingService documentParsingService) {
+                              DocumentParsingService documentParsingService,
+                              DocumentChunkService documentChunkService) {
         this.documentService = documentService;
         this.documentParsingService = documentParsingService;
+        this.documentChunkService = documentChunkService;
     }
 
     @PostMapping
@@ -64,6 +69,16 @@ public class DocumentController {
     @GetMapping("/{id}/text")
     public ApiResponse<DocumentTextResponse> getText(@PathVariable Long id) {
         return ApiResponse.success(documentParsingService.getText(id));
+    }
+
+    @PostMapping("/{id}/chunk")
+    public ApiResponse<DocumentResponse> chunk(@PathVariable Long id) {
+        return ApiResponse.success(documentChunkService.chunkDocument(id));
+    }
+
+    @GetMapping("/{id}/chunks")
+    public ApiResponse<List<DocumentChunkResponse>> getChunks(@PathVariable Long id) {
+        return ApiResponse.success(documentChunkService.listChunks(id));
     }
 
     @PutMapping("/{id}")

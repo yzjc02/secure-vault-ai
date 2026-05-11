@@ -25,15 +25,18 @@ public class DocumentParsingService {
     private final CurrentUserService currentUserService;
     private final FileStorageService fileStorageService;
     private final DocumentTextParser documentTextParser;
+    private final DocumentChunkService documentChunkService;
 
     public DocumentParsingService(DocumentRepository documentRepository,
                                   CurrentUserService currentUserService,
                                   FileStorageService fileStorageService,
-                                  DocumentTextParser documentTextParser) {
+                                  DocumentTextParser documentTextParser,
+                                  DocumentChunkService documentChunkService) {
         this.documentRepository = documentRepository;
         this.currentUserService = currentUserService;
         this.fileStorageService = fileStorageService;
         this.documentTextParser = documentTextParser;
+        this.documentChunkService = documentChunkService;
     }
 
     @Transactional
@@ -52,6 +55,7 @@ public class DocumentParsingService {
         document.setStatus(Document.STATUS_PARSING);
         document.setErrorMessage(null);
         document.setParsedAt(null);
+        documentChunkService.clearChunksForDocument(document);
         documentRepository.save(document);
 
         Path storedPath;
@@ -72,8 +76,11 @@ public class DocumentParsingService {
             document.setParsedAt(LocalDateTime.now());
             document.setStatus(Document.STATUS_PARSED);
             document.setErrorMessage(null);
-            return DocumentResponse.from(documentRepository.save(document), true);
+            Document savedDocument = documentRepository.save(document);
+            return documentChunkService.chunkForUser(savedDocument.getId(), currentUserId);
         } catch (DocumentParseException ex) {
+            return markFailed(document, ex.getMessage());
+        } catch (BusinessException ex) {
             return markFailed(document, ex.getMessage());
         } catch (RuntimeException ex) {
             return markFailed(document, "文档文本解析失败");
@@ -84,7 +91,8 @@ public class DocumentParsingService {
     public DocumentTextResponse getText(Long documentId) {
         Long currentUserId = currentUserService.getCurrentUserId();
         Document document = getOwnedDocument(documentId, currentUserId);
-        if (!Document.STATUS_PARSED.equals(document.getStatus()) || !StringUtils.hasText(document.getExtractedText())) {
+        boolean parsedStatus = Document.STATUS_PARSED.equals(document.getStatus()) || Document.STATUS_CHUNKED.equals(document.getStatus());
+        if (!parsedStatus || !StringUtils.hasText(document.getExtractedText())) {
             throw new BusinessException(400, "文档尚未解析成功");
         }
         return DocumentTextResponse.from(document);
@@ -95,6 +103,7 @@ public class DocumentParsingService {
         document.setExtractedText(null);
         document.setTextLength(0);
         document.setParsedAt(LocalDateTime.now());
+        documentChunkService.clearChunksForDocument(document);
         document.setErrorMessage(safeErrorMessage(message));
         return DocumentResponse.from(documentRepository.save(document), true);
     }

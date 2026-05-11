@@ -1,6 +1,7 @@
 package com.jiacheng.securevault.document;
 
 import com.jiacheng.securevault.document.entity.Document;
+import com.jiacheng.securevault.document.repository.DocumentChunkRepository;
 import com.jiacheng.securevault.document.repository.DocumentRepository;
 import com.jiacheng.securevault.document.service.FileStorageService;
 import com.jiacheng.securevault.user.UserRepository;
@@ -43,7 +44,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "jwt.secret=0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
         "jwt.expiration=86400000",
         "app.file-storage.upload-dir=${java.io.tmpdir}/secure-vault-ai-test-uploads",
-        "app.file-storage.max-file-size=16"
+        "app.file-storage.max-file-size=4096"
 })
 @AutoConfigureMockMvc
 class DocumentControllerTest {
@@ -55,6 +56,9 @@ class DocumentControllerTest {
     private DocumentRepository documentRepository;
 
     @Autowired
+    private DocumentChunkRepository documentChunkRepository;
+
+    @Autowired
     private UserRepository userRepository;
 
     @Autowired
@@ -62,6 +66,7 @@ class DocumentControllerTest {
 
     @BeforeEach
     void setUp() throws Exception {
+        documentChunkRepository.deleteAll();
         documentRepository.deleteAll();
         userRepository.deleteAll();
         cleanUploadRoot();
@@ -258,7 +263,7 @@ class DocumentControllerTest {
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.title").value("notes.txt"))
                 .andExpect(jsonPath("$.data.description", nullValue()))
-                .andExpect(jsonPath("$.data.status").value("PARSED"))
+                .andExpect(jsonPath("$.data.status").value("CHUNKED"))
                 .andExpect(jsonPath("$.data.originalFilename").value("notes.txt"))
                 .andExpect(jsonPath("$.data.storedFilename").value(containsString(".txt")))
                 .andExpect(jsonPath("$.data.fileType").value("txt"))
@@ -266,6 +271,8 @@ class DocumentControllerTest {
                 .andExpect(jsonPath("$.data.contentType").value(MediaType.TEXT_PLAIN_VALUE))
                 .andExpect(jsonPath("$.data.textLength").value(5))
                 .andExpect(jsonPath("$.data.parsedAt", notNullValue()))
+                .andExpect(jsonPath("$.data.chunkCount", greaterThan(0)))
+                .andExpect(jsonPath("$.data.chunkedAt", notNullValue()))
                 .andExpect(jsonPath("$.data.errorMessage", nullValue()))
                 .andExpect(jsonPath("$.data.filePath").doesNotExist())
                 .andReturn();
@@ -273,15 +280,36 @@ class DocumentControllerTest {
         String storedFilename = extractString(result.getResponse().getContentAsString(), "storedFilename");
         long docId = extractLong(result.getResponse().getContentAsString(), "id");
         assertThat(Files.exists(fileStorageService.getUploadRoot().resolve(storedFilename))).isTrue();
+        Document chunkedDocument = documentRepository.findById(docId).orElseThrow();
+        assertThat(documentChunkRepository.countByUserIdAndDocumentId(chunkedDocument.getUserId(), docId))
+                .isEqualTo(chunkedDocument.getChunkCount().longValue());
 
         mockMvc.perform(get("/api/documents/{id}/text", docId)
                         .header("Authorization", bearer(token)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data.status").value("PARSED"))
+                .andExpect(jsonPath("$.data.status").value("CHUNKED"))
                 .andExpect(jsonPath("$.data.textLength").value(5))
                 .andExpect(jsonPath("$.data.extractedText").value("hello"))
                 .andExpect(jsonPath("$.data.filePath").doesNotExist());
+
+        mockMvc.perform(get("/api/documents/{id}/chunks", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].documentId").value(docId))
+                .andExpect(jsonPath("$.data[0].chunkIndex").value(0))
+                .andExpect(jsonPath("$.data[0].content").value("hello"))
+                .andExpect(jsonPath("$.data[0].contentLength").value(5))
+                .andExpect(jsonPath("$.data[0].tokenCount", greaterThan(0)))
+                .andExpect(jsonPath("$.data[0].contentHash", notNullValue()))
+                .andExpect(jsonPath("$.data[0].startOffset").value(0))
+                .andExpect(jsonPath("$.data[0].endOffset").value(5))
+                .andExpect(jsonPath("$.data[0].createdAt", notNullValue()))
+                .andExpect(jsonPath("$.data[0].userId").doesNotExist())
+                .andExpect(jsonPath("$.data[0].filePath").doesNotExist())
+                .andExpect(jsonPath("$.data[0].extractedText").doesNotExist());
     }
 
     @Test
@@ -292,9 +320,11 @@ class DocumentControllerTest {
                         .file(markdownFile("notes.md", "# T\nbody"))
                         .header("Authorization", bearer(token)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("PARSED"))
+                .andExpect(jsonPath("$.data.status").value("CHUNKED"))
                 .andExpect(jsonPath("$.data.fileType").value("md"))
                 .andExpect(jsonPath("$.data.textLength", greaterThan(0)))
+                .andExpect(jsonPath("$.data.chunkCount", greaterThan(0)))
+                .andExpect(jsonPath("$.data.chunkedAt", notNullValue()))
                 .andReturn();
 
         long docId = extractLong(result.getResponse().getContentAsString(), "id");
@@ -305,6 +335,52 @@ class DocumentControllerTest {
     }
 
     @Test
+    void shouldReturnNormalChineseChunkContentForModuleFiveSmokeText() throws Exception {
+        String token = registerAndLogin("alice");
+        long docId = uploadDocument(token, "module-five-smoke.txt", moduleFiveSmokeText());
+
+        mockMvc.perform(get("/api/documents/{id}/chunks", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].content").value(containsString("chunks 接口可以返回内容。")))
+                .andExpect(jsonPath("$.data[0].content").value(containsString("text 接口仍然可以返回完整 extractedText。")))
+                .andExpect(jsonPath("$.data[0].content").value(containsString("列表和详情接口不能暴露 extractedText 和 filePath。")))
+                .andExpect(jsonPath("$.data[0].content").value(containsString("用户隔离必须生效。")))
+                .andExpect(jsonPath("$.data[0].content").value(not(containsString("接接口口"))))
+                .andExpect(jsonPath("$.data[0].content").value(not(containsString("可可以以"))))
+                .andExpect(jsonPath("$.data[0].content").value(not(containsString("返返回回"))))
+                .andExpect(jsonPath("$.data[0].content").value(not(containsString("内内容容"))))
+                .andExpect(jsonPath("$.data[0].content").value(not(containsString("用用户户"))));
+    }
+
+    @Test
+    void moduleFiveSmokeTextShouldStillHideFullTextFromListAndDetailButExposeTextEndpoint() throws Exception {
+        String token = registerAndLogin("alice");
+        long docId = uploadDocument(token, "module-five-smoke.txt", moduleFiveSmokeText());
+
+        MvcResult listResult = mockMvc.perform(get("/api/documents")
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].extractedText").doesNotExist())
+                .andExpect(jsonPath("$.data[0].filePath").doesNotExist())
+                .andReturn();
+
+        mockMvc.perform(get("/api/documents/{id}", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.extractedText").doesNotExist())
+                .andExpect(jsonPath("$.data.filePath").doesNotExist());
+
+        mockMvc.perform(get("/api/documents/{id}/text", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.extractedText").value(containsString("chunks 接口可以返回内容。")));
+
+        assertThat(listResult.getResponse().getContentAsString()).doesNotContain("chunks 接口可以返回内容。");
+    }
+
+    @Test
     void listDocumentsShouldNotReturnExtractedTextFullContent() throws Exception {
         String token = registerAndLogin("alice");
         uploadDocument(token, "secret.txt", "secretContent123");
@@ -312,9 +388,11 @@ class DocumentControllerTest {
         MvcResult result = mockMvc.perform(get("/api/documents")
                         .header("Authorization", bearer(token)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].status").value("PARSED"))
+                .andExpect(jsonPath("$.data[0].status").value("CHUNKED"))
                 .andExpect(jsonPath("$.data[0].textLength").value(16))
                 .andExpect(jsonPath("$.data[0].parsedAt", notNullValue()))
+                .andExpect(jsonPath("$.data[0].chunkCount", greaterThan(0)))
+                .andExpect(jsonPath("$.data[0].chunkedAt", notNullValue()))
                 .andExpect(jsonPath("$.data[0].extractedText").doesNotExist())
                 .andExpect(jsonPath("$.data[0].filePath").doesNotExist())
                 .andReturn();
@@ -330,8 +408,10 @@ class DocumentControllerTest {
         mockMvc.perform(get("/api/documents/{id}", docId)
                         .header("Authorization", bearer(token)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("PARSED"))
+                .andExpect(jsonPath("$.data.status").value("CHUNKED"))
                 .andExpect(jsonPath("$.data.textLength").value(16))
+                .andExpect(jsonPath("$.data.chunkCount", greaterThan(0)))
+                .andExpect(jsonPath("$.data.chunkedAt", notNullValue()))
                 .andExpect(jsonPath("$.data.extractedTextPreview").value("secretContent123"))
                 .andExpect(jsonPath("$.data.extractedText").doesNotExist())
                 .andExpect(jsonPath("$.data.filePath").doesNotExist());
@@ -346,10 +426,64 @@ class DocumentControllerTest {
                         .header("Authorization", bearer(token)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data.status").value("PARSED"))
+                .andExpect(jsonPath("$.data.status").value("CHUNKED"))
                 .andExpect(jsonPath("$.data.textLength").value(5))
+                .andExpect(jsonPath("$.data.chunkCount", greaterThan(0)))
+                .andExpect(jsonPath("$.data.chunkedAt", notNullValue()))
                 .andExpect(jsonPath("$.data.errorMessage", nullValue()))
                 .andExpect(jsonPath("$.data.filePath").doesNotExist());
+
+        Document reparsedDocument = documentRepository.findById(docId).orElseThrow();
+        assertThat(documentChunkRepository.countByUserIdAndDocumentId(reparsedDocument.getUserId(), docId))
+                .isEqualTo(reparsedDocument.getChunkCount().longValue());
+    }
+
+    @Test
+    void shouldManuallyRechunkOwnUploadedDocumentWithoutDuplicateChunks() throws Exception {
+        String token = registerAndLogin("alice");
+        long docId = uploadDocument(token, "notes.txt", "hello");
+        Document document = documentRepository.findById(docId).orElseThrow();
+        long initialCount = documentChunkRepository.countByUserIdAndDocumentId(document.getUserId(), docId);
+
+        mockMvc.perform(post("/api/documents/{id}/chunk", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.status").value("CHUNKED"))
+                .andExpect(jsonPath("$.data.chunkCount").value((int) initialCount))
+                .andExpect(jsonPath("$.data.chunkedAt", notNullValue()))
+                .andExpect(jsonPath("$.data.filePath").doesNotExist())
+                .andExpect(jsonPath("$.data.extractedText").doesNotExist());
+
+        mockMvc.perform(post("/api/documents/{id}/chunk", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.chunkCount").value((int) initialCount));
+
+        Document rechunkedDocument = documentRepository.findById(docId).orElseThrow();
+        assertThat(documentChunkRepository.countByUserIdAndDocumentId(rechunkedDocument.getUserId(), docId))
+                .isEqualTo(initialCount);
+    }
+
+    @Test
+    void shouldReturn400WhenChunkingCreatedDocumentWithoutExtractedText() throws Exception {
+        String token = registerAndLogin("alice");
+        long docId = createDocument(token, "Plain Record");
+
+        mockMvc.perform(post("/api/documents/{id}/chunk", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    void shouldReturn404WhenChunkingMissingDocument() throws Exception {
+        String token = registerAndLogin("alice");
+
+        mockMvc.perform(post("/api/documents/{id}/chunk", 99999L)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(404));
     }
 
     @Test
@@ -399,12 +533,37 @@ class DocumentControllerTest {
     }
 
     @Test
+    void shouldReturn404WhenOtherUserAccessesChunkEndpoints() throws Exception {
+        String tokenA = registerAndLogin("alice2");
+        String tokenB = registerAndLogin("bob2");
+        long docA = uploadDocument(tokenA, "notes.txt", "hello");
+
+        mockMvc.perform(get("/api/documents/{id}/chunks", docA)
+                        .header("Authorization", bearer(tokenB)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(404));
+
+        mockMvc.perform(post("/api/documents/{id}/chunk", docA)
+                        .header("Authorization", bearer(tokenB)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(404));
+    }
+
+    @Test
     void shouldReturn401WhenParseOrReadTextWithoutToken() throws Exception {
         mockMvc.perform(post("/api/documents/{id}/parse", 1L))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value(401));
 
         mockMvc.perform(get("/api/documents/{id}/text", 1L))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(401));
+
+        mockMvc.perform(post("/api/documents/{id}/chunk", 1L))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(401));
+
+        mockMvc.perform(get("/api/documents/{id}/chunks", 1L))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value(401));
     }
@@ -444,6 +603,25 @@ class DocumentControllerTest {
     }
 
     @Test
+    void shouldClearChunksWhenReparseFails() throws Exception {
+        String token = registerAndLogin("alice3");
+        long docId = uploadDocument(token, "notes.txt", "hello");
+        Document document = documentRepository.findById(docId).orElseThrow();
+        assertThat(documentChunkRepository.countByUserIdAndDocumentId(document.getUserId(), docId)).isGreaterThan(0);
+        Files.deleteIfExists(fileStorageService.getUploadRoot().resolve(document.getStoredFilename()));
+
+        mockMvc.perform(post("/api/documents/{id}/parse", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("FAILED"))
+                .andExpect(jsonPath("$.data.chunkCount").value(0))
+                .andExpect(jsonPath("$.data.chunkedAt", nullValue()));
+
+        Document failedDocument = documentRepository.findById(docId).orElseThrow();
+        assertThat(documentChunkRepository.countByUserIdAndDocumentId(failedDocument.getUserId(), docId)).isZero();
+    }
+
+    @Test
     void shouldReturn404AndKeepFileWhenOtherUserDeletesUploadedDocument() throws Exception {
         String tokenA = registerAndLogin("alice");
         String tokenB = registerAndLogin("bob");
@@ -462,9 +640,11 @@ class DocumentControllerTest {
     void shouldDeleteLocalFileWhenOwnerDeletesUploadedDocument() throws Exception {
         String token = registerAndLogin("alice");
         long docId = uploadDocument(token, "notes.txt", "hello");
-        String storedFilename = documentRepository.findById(docId).orElseThrow().getStoredFilename();
+        Document document = documentRepository.findById(docId).orElseThrow();
+        String storedFilename = document.getStoredFilename();
         Path storedFile = fileStorageService.getUploadRoot().resolve(storedFilename);
         assertThat(Files.exists(storedFile)).isTrue();
+        assertThat(documentChunkRepository.countByUserIdAndDocumentId(document.getUserId(), docId)).isGreaterThan(0);
 
         mockMvc.perform(delete("/api/documents/{id}", docId)
                         .header("Authorization", bearer(token)))
@@ -472,6 +652,7 @@ class DocumentControllerTest {
                 .andExpect(jsonPath("$.code").value(0));
 
         assertThat(Files.exists(storedFile)).isFalse();
+        assertThat(documentChunkRepository.countByUserIdAndDocumentId(document.getUserId(), docId)).isZero();
     }
 
     @Test
@@ -517,11 +698,11 @@ class DocumentControllerTest {
         String token = registerAndLogin("alice");
 
         mockMvc.perform(multipart("/api/documents/upload")
-                        .file(textFile("large.txt", "12345678901234567"))
+                        .file(textFile("large.txt", "x".repeat(4097)))
                         .header("Authorization", bearer(token)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400))
-                .andExpect(jsonPath("$.message").value("文件大小不能超过 16B"));
+                .andExpect(jsonPath("$.message").value("文件大小不能超过 4096B"));
     }
 
     @Test
@@ -631,6 +812,25 @@ class DocumentControllerTest {
     private MockMultipartFile markdownFile(String filename, String content) {
         return new MockMultipartFile("file", filename, "text/markdown",
                 content.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private String moduleFiveSmokeText() {
+        return """
+                这是 Secure Vault AI 模块五冒烟测试文档。
+
+                本文件用于验证：
+                1. 上传后自动解析。
+                2. 解析后自动分块。
+                3. chunkCount 大于 0。
+                4. chunks 接口可以返回内容。
+                5. text 接口仍然可以返回完整 extractedText。
+                6. 列表和详情接口不能暴露 extractedText 和 filePath。
+                7. 用户隔离必须生效。
+
+                Spring Security、JWT、Document Chunking、User Isolation。
+                这是第二段文本，用来帮助分块逻辑识别段落边界。
+                这是第三段文本，用来验证中文内容不会乱码。
+                """;
     }
 
     private String bearer(String token) {

@@ -23,6 +23,8 @@ public class Document {
     public static final String STATUS_UPLOADED = "UPLOADED";
     public static final String STATUS_PARSING = "PARSING";
     public static final String STATUS_PARSED = "PARSED";
+    public static final String STATUS_CHUNKING = "CHUNKING";
+    public static final String STATUS_CHUNKED = "CHUNKED";
     public static final String STATUS_FAILED = "FAILED";
 
     @Id
@@ -72,6 +74,12 @@ public class Document {
     @Column(name = "parsed_at")
     private LocalDateTime parsedAt;
 
+    @Column(name = "chunk_count")
+    private Integer chunkCount = 0;
+
+    @Column(name = "chunked_at")
+    private LocalDateTime chunkedAt;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -85,6 +93,9 @@ public class Document {
         this.updatedAt = now;
         if (this.status == null) {
             this.status = STATUS_CREATED;
+        }
+        if (this.chunkCount == null) {
+            this.chunkCount = 0;
         }
     }
 
@@ -123,6 +134,10 @@ public class Document {
     public void setTextLength(Integer textLength) { this.textLength = textLength; }
     public LocalDateTime getParsedAt() { return parsedAt; }
     public void setParsedAt(LocalDateTime parsedAt) { this.parsedAt = parsedAt; }
+    public Integer getChunkCount() { return chunkCount; }
+    public void setChunkCount(Integer chunkCount) { this.chunkCount = chunkCount; }
+    public LocalDateTime getChunkedAt() { return chunkedAt; }
+    public void setChunkedAt(LocalDateTime chunkedAt) { this.chunkedAt = chunkedAt; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

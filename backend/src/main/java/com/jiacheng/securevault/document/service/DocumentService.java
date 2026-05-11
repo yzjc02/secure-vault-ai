@@ -4,6 +4,7 @@ import com.jiacheng.securevault.document.dto.DocumentCreateRequest;
 import com.jiacheng.securevault.document.dto.DocumentResponse;
 import com.jiacheng.securevault.document.dto.DocumentUpdateRequest;
 import com.jiacheng.securevault.document.entity.Document;
+import com.jiacheng.securevault.document.repository.DocumentChunkRepository;
 import com.jiacheng.securevault.document.repository.DocumentRepository;
 import com.jiacheng.securevault.exception.BusinessException;
 import com.jiacheng.securevault.security.CurrentUserService;
@@ -24,15 +25,18 @@ public class DocumentService {
     private final CurrentUserService currentUserService;
     private final FileStorageService fileStorageService;
     private final DocumentParsingService documentParsingService;
+    private final DocumentChunkRepository documentChunkRepository;
 
     public DocumentService(DocumentRepository documentRepository,
                            CurrentUserService currentUserService,
                            FileStorageService fileStorageService,
-                           DocumentParsingService documentParsingService) {
+                           DocumentParsingService documentParsingService,
+                           DocumentChunkRepository documentChunkRepository) {
         this.documentRepository = documentRepository;
         this.currentUserService = currentUserService;
         this.fileStorageService = fileStorageService;
         this.documentParsingService = documentParsingService;
+        this.documentChunkRepository = documentChunkRepository;
     }
 
     @Transactional
@@ -46,6 +50,8 @@ public class DocumentService {
         document.setTitle(title);
         document.setDescription(description);
         document.setStatus(Document.STATUS_CREATED);
+        document.setChunkCount(0);
+        document.setChunkedAt(null);
 
         return toResponse(documentRepository.save(document));
     }
@@ -66,6 +72,8 @@ public class DocumentService {
         document.setFileType(storedFile.fileType());
         document.setFileSize(storedFile.fileSize());
         document.setContentType(storedFile.contentType());
+        document.setChunkCount(0);
+        document.setChunkedAt(null);
 
         try {
             Document savedDocument = documentRepository.save(document);
@@ -105,6 +113,7 @@ public class DocumentService {
         Long currentUserId = currentUserService.getCurrentUserId();
         Document document = getOwnedDocument(id, currentUserId);
         fileStorageService.delete(document.getStoredFilename());
+        documentChunkRepository.deleteByUserIdAndDocumentId(currentUserId, document.getId());
         documentRepository.delete(document);
     }
 

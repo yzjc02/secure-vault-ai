@@ -36,3 +36,7 @@ app:
     upload-dir: ${FILE_STORAGE_DIR:./data/uploads}
     max-file-size: ${MAX_FILE_SIZE:20971520}
     allowed-extensions: pdf,docx,txt,md,markdown
+  chunking:
+    chunk-size: ${CHUNK_SIZE:1000}
+    overlap-size: ${CHUNK_OVERLAP_SIZE:150}
+    min-chunk-size: ${CHUNK_MIN_SIZE:100}

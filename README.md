@@ -2,6 +2,80 @@
 
 Privacy-first personal knowledge vault powered by Spring Boot + RAG + Ollama.
 
+## Backend Module 5: 文本分块 Chunking
+
+模块五在文档解析能力之上新增文本分块能力，为后续 embedding 和向量检索做准备。本模块只负责 chunking，不包含 embedding、pgvector、Ollama、LangChain4j、RAG 问答或聊天接口。
+
+### 功能说明
+
+- 从 `Document.extractedText` 读取已解析文本。
+- 对文本做轻量清洗：统一换行、移除 NUL、行尾 trim、压缩连续空行，并保留段落和 Markdown 基本结构。
+- 使用固定字符窗口 + overlap 切分文本，默认 `chunkSize=1000`、`overlapSize=150`、`minChunkSize=100`。
+- 优先在段落、换行、中英文句末标点、弱边界附近切分，找不到合适边界时才硬切。
+- 将 chunk 写入 `document_chunks` 表，每条 chunk 绑定 `userId` 和 `documentId`。
+- 上传文件自动解析成功后会自动分块。
+- 手动重新解析成功后会清理旧 chunks 并重新分块。
+- 手动重新分块会先删除旧 chunks，避免重复和过期 chunk 残留。
+- 删除文档时同步删除当前用户该文档的 chunks。
+- `DocumentResponse` 新增 `chunkCount`、`chunkedAt`，列表和详情仍不返回完整 `extractedText`，API 仍不暴露 `filePath`。
+
+### 新增配置
+
+`.env.example` 和 `application.yml` 支持以下配置：
+
+```env
+CHUNK_SIZE=1000
+CHUNK_OVERLAP_SIZE=150
+CHUNK_MIN_SIZE=100
+```
+
+配置校验规则：
+
+- `CHUNK_SIZE` 必须大于 0。
+- `CHUNK_OVERLAP_SIZE` 必须大于等于 0，且小于 `CHUNK_SIZE`。
+- `CHUNK_MIN_SIZE` 必须大于 0，且小于等于 `CHUNK_SIZE`。
+- 配置非法时应用启动失败，并返回清晰的校验错误。
+
+### 新增接口
+
+手动重新分块：
+
+```http
+POST /api/documents/{id}/chunk
+Authorization: Bearer <token>
+```
+
+成功后返回 `DocumentResponse`，`status=CHUNKED`，`chunkCount > 0`，`chunkedAt` 不为空。
+
+查询文档 chunks：
+
+```http
+GET /api/documents/{id}/chunks
+Authorization: Bearer <token>
+```
+
+返回按 `chunkIndex` 升序排列的 chunk 列表。响应包含 `content`、`contentLength`、`tokenCount`、`contentHash`、`startOffset`、`endOffset`、`createdAt`，不包含 `userId`、`filePath` 或完整 `extractedText` 字段。
+
+### 状态流转
+
+- 上传成功：`UPLOADED`
+- 解析中：`PARSING`
+- 解析完成：`PARSED`
+- 分块中：`CHUNKING`
+- 分块完成：`CHUNKED`
+- 解析或分块失败：`FAILED`
+
+模块五接入后，上传一个可解析 TXT / Markdown / PDF / DOCX 文档时，如果解析和分块都成功，最终状态是 `CHUNKED`。`GET /api/documents/{id}/text` 仍可返回完整 `extractedText`。
+
+### 安全说明
+
+- chunks 持久化保存 `userId`，后续检索必须按 `userId` 过滤。
+- 查询 chunks 和重新分块都使用 `documentId + currentUserId` 校验归属。
+- 用户 B 访问用户 A 的文档 chunks 或重新分块用户 A 的文档时，统一返回 `404 文档不存在`。
+- Controller 不接收前端传入的 `userId`，用户归属只来自当前 JWT / SecurityContext。
+- 删除 chunks 使用 `userId + documentId` 条件，不直接按裸 `documentId` 删除其他用户数据。
+- 文档列表和详情仍不返回完整 `extractedText`，API 不暴露服务器本地 `filePath`。
+
 ## Backend Module 3: 真实文件上传与本地存储
 
 模块三在现有文档 CRUD 基础上新增真实文件上传。登录用户可以上传 `pdf`、`docx`、`txt`、`md`、`markdown` 文件，后端会生成安全的 UUID 文件名，把文件保存到本地上传目录，并把文件元数据记录到 `documents` 表。
