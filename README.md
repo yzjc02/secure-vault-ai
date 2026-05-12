@@ -2,6 +2,130 @@
 
 Privacy-first personal knowledge vault powered by Spring Boot + RAG + Ollama.
 
+## Backend Module 7: RAG Question Answering
+
+Module 7 adds authenticated RAG question answering on top of module 6 semantic chunk search. It does not add frontend UI, streaming, WebSocket, agents, OCR, or LangChain/Spring AI.
+
+### Features
+
+- `POST /api/chat/ask` searches the current user's embedded chunks, builds a bounded RAG prompt, calls the configured chat provider, and returns `answer + sources`.
+- `GET /api/conversations` lists only the current user's conversations.
+- `GET /api/conversations/{id}/messages` returns only the current user's conversation messages.
+- Conversations and chat messages are persisted in `conversations` and `chat_messages`.
+- The default chat provider is `deterministic`, so tests and smoke checks do not require Ollama.
+- `ollama` chat provider supports local `/api/chat` with `stream=false`.
+- Cross-user document, chunk, conversation, and message access returns 404.
+- Responses do not expose `userId`, `filePath`, `storedFilename`, embedding arrays, or full prompts.
+
+### Configuration
+
+```env
+RAG_DEFAULT_TOP_K=5
+RAG_MAX_TOP_K=10
+RAG_MAX_QUESTION_LENGTH=2000
+RAG_MAX_CONTEXT_CHARS=8000
+RAG_SOURCE_PREVIEW_LENGTH=300
+CHAT_PROVIDER=deterministic
+OLLAMA_BASE_URL=http://host.docker.internal:11434
+OLLAMA_CHAT_MODEL=qwen2.5:3b
+OLLAMA_CHAT_TIMEOUT_SECONDS=60
+```
+
+`CHAT_PROVIDER=deterministic` is the default and is suitable for automated tests, local smoke checks, and environments without Ollama.
+
+To use real local Ollama chat:
+
+```powershell
+ollama pull qwen2.5:3b
+```
+
+Then set:
+
+```env
+CHAT_PROVIDER=ollama
+OLLAMA_BASE_URL=http://host.docker.internal:11434
+OLLAMA_CHAT_MODEL=qwen2.5:3b
+```
+
+### API Examples
+
+Ask a question:
+
+```http
+POST /api/chat/ask
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "question": "What does module seven validate?",
+  "topK": 5,
+  "documentId": 123,
+  "conversationId": 1
+}
+```
+
+`documentId` and `conversationId` are optional. If either is present, it is checked with `currentUserId`; another user's resource returns 404.
+
+Example response:
+
+```json
+{
+  "code": 0,
+  "message": "OK",
+  "data": {
+    "conversationId": 1,
+    "userMessageId": 10,
+    "assistantMessageId": 11,
+    "answer": "根据你的知识库片段 [S1]，可以回答：What does module seven validate?",
+    "sources": [
+      {
+        "sourceId": "S1",
+        "chunkId": 100,
+        "documentId": 123,
+        "documentTitle": "module7.txt",
+        "originalFilename": "module7.txt",
+        "chunkIndex": 0,
+        "score": 0.87,
+        "contentPreview": "Secure Vault AI module seven validates RAG question answering...",
+        "embeddingModel": "nomic-embed-text",
+        "embeddedAt": "2026-05-12T18:00:00"
+      }
+    ],
+    "model": "deterministic",
+    "provider": "deterministic",
+    "usedTopK": 5
+  }
+}
+```
+
+List conversations:
+
+```http
+GET /api/conversations
+Authorization: Bearer <token>
+```
+
+Get conversation messages:
+
+```http
+GET /api/conversations/1/messages
+Authorization: Bearer <token>
+```
+
+### Verification
+
+```powershell
+cd C:\Users\yzjc1\secure-vault-ai\backend
+.\mvnw.cmd test
+```
+
+Optional Docker smoke flow:
+
+```powershell
+cd C:\Users\yzjc1\secure-vault-ai
+powershell -ExecutionPolicy Bypass -File .\scripts\module7-smoke.ps1
+```
+
 ## Backend Module 6: Embedding + pgvector Vector Search
 
 Module 6 adds embeddings for `document_chunks` and semantic chunk search. It keeps the existing Spring Boot 4 / Java 17 / JPA architecture and does not add chat, conversations, RAG prompts, or answer generation.

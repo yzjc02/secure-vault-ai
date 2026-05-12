@@ -50,3 +50,15 @@ app:
     ollama:
       base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
       embeddings-path: ${OLLAMA_EMBEDDINGS_PATH:/api/embeddings}
+  rag:
+    default-top-k: ${RAG_DEFAULT_TOP_K:5}
+    max-top-k: ${RAG_MAX_TOP_K:10}
+    max-question-length: ${RAG_MAX_QUESTION_LENGTH:2000}
+    max-context-chars: ${RAG_MAX_CONTEXT_CHARS:8000}
+    source-preview-length: ${RAG_SOURCE_PREVIEW_LENGTH:300}
+  chat:
+    provider: ${CHAT_PROVIDER:deterministic}
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      model: ${OLLAMA_CHAT_MODEL:qwen2.5:3b}
+      timeout-seconds: ${OLLAMA_CHAT_TIMEOUT_SECONDS:60}
