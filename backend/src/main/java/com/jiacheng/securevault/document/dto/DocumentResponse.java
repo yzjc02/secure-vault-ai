@@ -20,6 +20,10 @@ public class DocumentResponse {
     private LocalDateTime parsedAt;
     private Integer chunkCount;
     private LocalDateTime chunkedAt;
+    private Integer embeddedChunkCount;
+    private LocalDateTime embeddedAt;
+    private String embeddingModel;
+    private Integer embeddingDimension;
     private String extractedTextPreview;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -41,6 +45,10 @@ public class DocumentResponse {
                             LocalDateTime parsedAt,
                             Integer chunkCount,
                             LocalDateTime chunkedAt,
+                            Integer embeddedChunkCount,
+                            LocalDateTime embeddedAt,
+                            String embeddingModel,
+                            Integer embeddingDimension,
                             String extractedTextPreview,
                             LocalDateTime createdAt,
                             LocalDateTime updatedAt) {
@@ -58,6 +66,10 @@ public class DocumentResponse {
         this.parsedAt = parsedAt;
         this.chunkCount = chunkCount;
         this.chunkedAt = chunkedAt;
+        this.embeddedChunkCount = embeddedChunkCount;
+        this.embeddedAt = embeddedAt;
+        this.embeddingModel = embeddingModel;
+        this.embeddingDimension = embeddingDimension;
         this.extractedTextPreview = extractedTextPreview;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
@@ -79,6 +91,10 @@ public class DocumentResponse {
                 document.getParsedAt(),
                 chunkCountOrZero(document),
                 document.getChunkedAt(),
+                embeddedChunkCountOrZero(document),
+                document.getEmbeddedAt(),
+                document.getEmbeddingModel(),
+                document.getEmbeddingDimension(),
                 includeTextPreview ? preview(document.getExtractedText()) : null,
                 document.getCreatedAt(),
                 document.getUpdatedAt()
@@ -95,6 +111,10 @@ public class DocumentResponse {
 
     private static Integer chunkCountOrZero(Document document) {
         return document.getChunkCount() == null ? 0 : document.getChunkCount();
+    }
+
+    private static Integer embeddedChunkCountOrZero(Document document) {
+        return document.getEmbeddedChunkCount() == null ? 0 : document.getEmbeddedChunkCount();
     }
 
     public Long getId() { return id; }
@@ -125,6 +145,14 @@ public class DocumentResponse {
     public void setChunkCount(Integer chunkCount) { this.chunkCount = chunkCount; }
     public LocalDateTime getChunkedAt() { return chunkedAt; }
     public void setChunkedAt(LocalDateTime chunkedAt) { this.chunkedAt = chunkedAt; }
+    public Integer getEmbeddedChunkCount() { return embeddedChunkCount; }
+    public void setEmbeddedChunkCount(Integer embeddedChunkCount) { this.embeddedChunkCount = embeddedChunkCount; }
+    public LocalDateTime getEmbeddedAt() { return embeddedAt; }
+    public void setEmbeddedAt(LocalDateTime embeddedAt) { this.embeddedAt = embeddedAt; }
+    public String getEmbeddingModel() { return embeddingModel; }
+    public void setEmbeddingModel(String embeddingModel) { this.embeddingModel = embeddingModel; }
+    public Integer getEmbeddingDimension() { return embeddingDimension; }
+    public void setEmbeddingDimension(Integer embeddingDimension) { this.embeddingDimension = embeddingDimension; }
     public String getExtractedTextPreview() { return extractedTextPreview; }
     public void setExtractedTextPreview(String extractedTextPreview) { this.extractedTextPreview = extractedTextPreview; }
     public LocalDateTime getCreatedAt() { return createdAt; }

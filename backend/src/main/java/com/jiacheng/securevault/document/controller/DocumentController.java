@@ -4,9 +4,13 @@ import com.jiacheng.securevault.common.ApiResponse;
 import com.jiacheng.securevault.document.dto.DocumentCreateRequest;
 import com.jiacheng.securevault.document.dto.DocumentChunkResponse;
 import com.jiacheng.securevault.document.dto.DocumentResponse;
+import com.jiacheng.securevault.document.dto.EmbeddingStatusResponse;
+import com.jiacheng.securevault.document.dto.SemanticSearchRequest;
+import com.jiacheng.securevault.document.dto.SimilarChunkResponse;
 import com.jiacheng.securevault.document.dto.DocumentTextResponse;
 import com.jiacheng.securevault.document.dto.DocumentUpdateRequest;
 import com.jiacheng.securevault.document.service.DocumentChunkService;
+import com.jiacheng.securevault.document.service.DocumentEmbeddingService;
 import com.jiacheng.securevault.document.service.DocumentParsingService;
 import com.jiacheng.securevault.document.service.DocumentService;
 import jakarta.validation.Valid;
@@ -31,13 +35,16 @@ public class DocumentController {
     private final DocumentService documentService;
     private final DocumentParsingService documentParsingService;
     private final DocumentChunkService documentChunkService;
+    private final DocumentEmbeddingService documentEmbeddingService;
 
     public DocumentController(DocumentService documentService,
                               DocumentParsingService documentParsingService,
-                              DocumentChunkService documentChunkService) {
+                              DocumentChunkService documentChunkService,
+                              DocumentEmbeddingService documentEmbeddingService) {
         this.documentService = documentService;
         this.documentParsingService = documentParsingService;
         this.documentChunkService = documentChunkService;
+        this.documentEmbeddingService = documentEmbeddingService;
     }
 
     @PostMapping
@@ -79,6 +86,21 @@ public class DocumentController {
     @GetMapping("/{id}/chunks")
     public ApiResponse<List<DocumentChunkResponse>> getChunks(@PathVariable Long id) {
         return ApiResponse.success(documentChunkService.listChunks(id));
+    }
+
+    @PostMapping("/{id}/embed")
+    public ApiResponse<DocumentResponse> embed(@PathVariable Long id) {
+        return ApiResponse.success(documentEmbeddingService.embedDocument(id));
+    }
+
+    @GetMapping("/{id}/embedding-status")
+    public ApiResponse<EmbeddingStatusResponse> getEmbeddingStatus(@PathVariable Long id) {
+        return ApiResponse.success(documentEmbeddingService.getEmbeddingStatus(id));
+    }
+
+    @PostMapping("/search-chunks")
+    public ApiResponse<List<SimilarChunkResponse>> searchChunks(@Valid @RequestBody SemanticSearchRequest request) {
+        return ApiResponse.success(documentEmbeddingService.searchSimilarChunks(request));
     }
 
     @PutMapping("/{id}")

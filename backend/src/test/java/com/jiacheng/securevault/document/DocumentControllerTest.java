@@ -747,6 +747,216 @@ class DocumentControllerTest {
                 .andExpect(jsonPath("$.data.description").value("updated"));
     }
 
+    @Test
+    void shouldEmbedUploadedDocumentAndReturnEmbeddingStatus() throws Exception {
+        String token = registerAndLogin("alice");
+        long docId = uploadDocument(token, "embedding.txt", "Secure Vault AI semantic chunk search text");
+
+        MvcResult embedResult = mockMvc.perform(post("/api/documents/{id}/embed", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.status").value("EMBEDDED"))
+                .andExpect(jsonPath("$.data.embeddedChunkCount", greaterThan(0)))
+                .andExpect(jsonPath("$.data.embeddedAt", notNullValue()))
+                .andExpect(jsonPath("$.data.embeddingModel").value("nomic-embed-text"))
+                .andExpect(jsonPath("$.data.embeddingDimension").value(768))
+                .andExpect(jsonPath("$.data.filePath").doesNotExist())
+                .andReturn();
+
+        String embedJson = embedResult.getResponse().getContentAsString();
+        assertThat(embedJson).doesNotContain("\"embedding\":");
+        assertThat(embedJson).doesNotContain("\"userId\"");
+        assertThat(embedJson).doesNotContain("\"filePath\"");
+        assertThat(documentChunkRepository.findAllByUserIdAndDocumentIdOrderByChunkIndexAsc(
+                documentRepository.findById(docId).orElseThrow().getUserId(), docId
+        )).allSatisfy(chunk -> assertThat(chunk.getEmbeddingJson()).isNotBlank());
+
+        mockMvc.perform(get("/api/documents/{id}/embedding-status", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.documentId").value(docId))
+                .andExpect(jsonPath("$.data.status").value("EMBEDDED"))
+                .andExpect(jsonPath("$.data.chunkCount", greaterThan(0)))
+                .andExpect(jsonPath("$.data.embeddedChunkCount", greaterThan(0)))
+                .andExpect(jsonPath("$.data.embeddingModel").value("nomic-embed-text"))
+                .andExpect(jsonPath("$.data.embeddingDimension").value(768))
+                .andExpect(jsonPath("$.data.filePath").doesNotExist())
+                .andExpect(jsonPath("$.data.userId").doesNotExist());
+    }
+
+    @Test
+    void shouldAllowReEmbeddingEmbeddedDocument() throws Exception {
+        String token = registerAndLogin("alice");
+        long docId = uploadDocument(token, "embedding.txt", "re-embedding text");
+
+        mockMvc.perform(post("/api/documents/{id}/embed", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("EMBEDDED"));
+
+        mockMvc.perform(post("/api/documents/{id}/embed", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("EMBEDDED"))
+                .andExpect(jsonPath("$.data.embeddedChunkCount", greaterThan(0)));
+    }
+
+    @Test
+    void shouldProtectEmbeddingEndpointsByUserAndAuthentication() throws Exception {
+        String tokenA = registerAndLogin("alice");
+        String tokenB = registerAndLogin("bob");
+        long docA = uploadDocument(tokenA, "alice.txt", "alice private semantic content");
+
+        mockMvc.perform(post("/api/documents/{id}/embed", docA))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(401));
+
+        mockMvc.perform(post("/api/documents/{id}/embed", docA)
+                        .header("Authorization", bearer(tokenB)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(404));
+
+        mockMvc.perform(get("/api/documents/{id}/embedding-status", docA)
+                        .header("Authorization", bearer(tokenB)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(404));
+    }
+
+    @Test
+    void shouldReturn400WhenEmbeddingDocumentWithoutChunks() throws Exception {
+        String token = registerAndLogin("alice");
+        long docId = createDocument(token, "plain record");
+
+        mockMvc.perform(post("/api/documents/{id}/embed", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    void shouldSearchEmbeddedChunksWithoutLeakingEmbeddingOrUserFields() throws Exception {
+        String token = registerAndLogin("alice");
+        long docId = uploadDocument(token, "search.txt", "semantic search target content");
+        mockMvc.perform(post("/api/documents/{id}/embed", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk());
+
+        MvcResult result = mockMvc.perform(post("/api/documents/search-chunks")
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "query": "semantic target",
+                                  "topK": 5
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].documentId").value(docId))
+                .andExpect(jsonPath("$.data[0].chunkIndex").value(0))
+                .andExpect(jsonPath("$.data[0].content").value(containsString("semantic search target")))
+                .andExpect(jsonPath("$.data[0].contentPreview").value(containsString("semantic search target")))
+                .andExpect(jsonPath("$.data[0].score", notNullValue()))
+                .andExpect(jsonPath("$.data[0].embedding").doesNotExist())
+                .andExpect(jsonPath("$.data[0].userId").doesNotExist())
+                .andExpect(jsonPath("$.data[0].filePath").doesNotExist())
+                .andReturn();
+
+        String json = result.getResponse().getContentAsString();
+        assertThat(json).doesNotContain("\"embedding\":");
+        assertThat(json).doesNotContain("\"userId\"");
+        assertThat(json).doesNotContain("\"filePath\"");
+    }
+
+    @Test
+    void shouldKeepSemanticSearchResultsIsolatedByUser() throws Exception {
+        String tokenA = registerAndLogin("alice");
+        String tokenB = registerAndLogin("bob");
+        long docA = uploadDocument(tokenA, "alice.txt", "alice only embedded chunk");
+        mockMvc.perform(post("/api/documents/{id}/embed", docA)
+                        .header("Authorization", bearer(tokenA)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/documents/search-chunks")
+                        .header("Authorization", bearer(tokenB))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "query": "alice"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(0)));
+    }
+
+    @Test
+    void shouldValidateSemanticSearchRequestAndDocumentFilterOwnership() throws Exception {
+        String tokenA = registerAndLogin("alice");
+        String tokenB = registerAndLogin("bob");
+        long docA = uploadDocument(tokenA, "alice.txt", "alice filter content");
+
+        mockMvc.perform(post("/api/documents/search-chunks")
+                        .header("Authorization", bearer(tokenA))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "query": "   "
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
+
+        mockMvc.perform(post("/api/documents/search-chunks")
+                        .header("Authorization", bearer(tokenA))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "query": "alice",
+                                  "topK": 21
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
+
+        mockMvc.perform(post("/api/documents/search-chunks")
+                        .header("Authorization", bearer(tokenB))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "query": "alice",
+                                  "documentId": %d
+                                }
+                                """.formatted(docA)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(404));
+    }
+
+    @Test
+    void shouldSearchOnlyRequestedDocumentWhenDocumentIdFilterIsPresent() throws Exception {
+        String token = registerAndLogin("alice");
+        long docA = uploadDocument(token, "a.txt", "first semantic document");
+        long docB = uploadDocument(token, "b.txt", "second semantic document");
+        mockMvc.perform(post("/api/documents/{id}/embed", docA).header("Authorization", bearer(token)))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/documents/{id}/embed", docB).header("Authorization", bearer(token)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/documents/search-chunks")
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "query": "semantic",
+                                  "documentId": %d,
+                                  "topK": 5
+                                }
+                                """.formatted(docA)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].documentId").value(docA));
+    }
+
     private String registerAndLogin(String username) throws Exception {
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)

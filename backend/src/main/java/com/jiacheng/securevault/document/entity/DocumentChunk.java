@@ -53,6 +53,19 @@ public class DocumentChunk {
     @Column(name = "end_offset", nullable = false)
     private Integer endOffset;
 
+    @Lob
+    @Column(name = "embedding_json", columnDefinition = "TEXT")
+    private String embeddingJson;
+
+    @Column(name = "embedding_model", length = 128)
+    private String embeddingModel;
+
+    @Column(name = "embedding_dimension")
+    private Integer embeddingDimension;
+
+    @Column(name = "embedded_at")
+    private LocalDateTime embeddedAt;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -81,6 +94,14 @@ public class DocumentChunk {
     public void setStartOffset(Integer startOffset) { this.startOffset = startOffset; }
     public Integer getEndOffset() { return endOffset; }
     public void setEndOffset(Integer endOffset) { this.endOffset = endOffset; }
+    public String getEmbeddingJson() { return embeddingJson; }
+    public void setEmbeddingJson(String embeddingJson) { this.embeddingJson = embeddingJson; }
+    public String getEmbeddingModel() { return embeddingModel; }
+    public void setEmbeddingModel(String embeddingModel) { this.embeddingModel = embeddingModel; }
+    public Integer getEmbeddingDimension() { return embeddingDimension; }
+    public void setEmbeddingDimension(Integer embeddingDimension) { this.embeddingDimension = embeddingDimension; }
+    public LocalDateTime getEmbeddedAt() { return embeddedAt; }
+    public void setEmbeddedAt(LocalDateTime embeddedAt) { this.embeddedAt = embeddedAt; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

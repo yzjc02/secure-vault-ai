@@ -115,6 +115,10 @@ public class DocumentChunkService {
         documentChunkRepository.deleteByUserIdAndDocumentId(document.getUserId(), document.getId());
         document.setChunkCount(0);
         document.setChunkedAt(null);
+        document.setEmbeddedChunkCount(0);
+        document.setEmbeddedAt(null);
+        document.setEmbeddingModel(null);
+        document.setEmbeddingDimension(null);
     }
 
     private DocumentChunk toChunk(Document document, TextChunkingService.ChunkCandidate candidate) {

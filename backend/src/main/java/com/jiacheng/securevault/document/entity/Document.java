@@ -25,6 +25,8 @@ public class Document {
     public static final String STATUS_PARSED = "PARSED";
     public static final String STATUS_CHUNKING = "CHUNKING";
     public static final String STATUS_CHUNKED = "CHUNKED";
+    public static final String STATUS_EMBEDDING = "EMBEDDING";
+    public static final String STATUS_EMBEDDED = "EMBEDDED";
     public static final String STATUS_FAILED = "FAILED";
 
     @Id
@@ -80,6 +82,18 @@ public class Document {
     @Column(name = "chunked_at")
     private LocalDateTime chunkedAt;
 
+    @Column(name = "embedded_chunk_count")
+    private Integer embeddedChunkCount = 0;
+
+    @Column(name = "embedded_at")
+    private LocalDateTime embeddedAt;
+
+    @Column(name = "embedding_model", length = 128)
+    private String embeddingModel;
+
+    @Column(name = "embedding_dimension")
+    private Integer embeddingDimension;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -96,6 +110,9 @@ public class Document {
         }
         if (this.chunkCount == null) {
             this.chunkCount = 0;
+        }
+        if (this.embeddedChunkCount == null) {
+            this.embeddedChunkCount = 0;
         }
     }
 
@@ -138,6 +155,14 @@ public class Document {
     public void setChunkCount(Integer chunkCount) { this.chunkCount = chunkCount; }
     public LocalDateTime getChunkedAt() { return chunkedAt; }
     public void setChunkedAt(LocalDateTime chunkedAt) { this.chunkedAt = chunkedAt; }
+    public Integer getEmbeddedChunkCount() { return embeddedChunkCount; }
+    public void setEmbeddedChunkCount(Integer embeddedChunkCount) { this.embeddedChunkCount = embeddedChunkCount; }
+    public LocalDateTime getEmbeddedAt() { return embeddedAt; }
+    public void setEmbeddedAt(LocalDateTime embeddedAt) { this.embeddedAt = embeddedAt; }
+    public String getEmbeddingModel() { return embeddingModel; }
+    public void setEmbeddingModel(String embeddingModel) { this.embeddingModel = embeddingModel; }
+    public Integer getEmbeddingDimension() { return embeddingDimension; }
+    public void setEmbeddingDimension(Integer embeddingDimension) { this.embeddingDimension = embeddingDimension; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

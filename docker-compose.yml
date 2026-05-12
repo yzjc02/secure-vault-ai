@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -32,6 +32,14 @@ services:
       JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
       FILE_STORAGE_DIR: ${FILE_STORAGE_DIR:-/app/data/uploads}
       MAX_FILE_SIZE: ${MAX_FILE_SIZE:-20971520}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-deterministic}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+      EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-768}
+      EMBEDDING_TOP_K: ${EMBEDDING_TOP_K:-5}
+      EMBEDDING_TIMEOUT_SECONDS: ${EMBEDDING_TIMEOUT_SECONDS:-30}
+      EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-16}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_EMBEDDINGS_PATH: ${OLLAMA_EMBEDDINGS_PATH:-/api/embeddings}
     ports:
       - "${APP_PORT:-8080}:8080"
     volumes:

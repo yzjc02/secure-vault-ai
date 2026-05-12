@@ -2,6 +2,96 @@
 
 Privacy-first personal knowledge vault powered by Spring Boot + RAG + Ollama.
 
+## Backend Module 6: Embedding + pgvector Vector Search
+
+Module 6 adds embeddings for `document_chunks` and semantic chunk search. It keeps the existing Spring Boot 4 / Java 17 / JPA architecture and does not add chat, conversations, RAG prompts, or answer generation.
+
+### Features
+
+- `POST /api/documents/{id}/embed` generates embeddings for the current user's chunks and updates the document status to `EMBEDDED`.
+- `GET /api/documents/{id}/embedding-status` returns chunk and embedding progress without exposing vectors.
+- `POST /api/documents/search-chunks` embeds the query and searches only the current user's embedded chunks.
+- PostgreSQL uses pgvector `vector(EMBEDDING_DIMENSION)` and cosine distance (`<=>`) for production search.
+- H2 and unit tests use deterministic embeddings plus `embedding_json`, so tests do not require Ollama or PostgreSQL.
+- Cross-user access to document embedding/status returns 404, and search results never include another user's chunks.
+- API responses do not include `userId`, `filePath`, or full embedding arrays.
+
+### Configuration
+
+```env
+EMBEDDING_PROVIDER=deterministic
+EMBEDDING_MODEL=nomic-embed-text
+EMBEDDING_DIMENSION=768
+EMBEDDING_TOP_K=5
+EMBEDDING_TIMEOUT_SECONDS=30
+EMBEDDING_BATCH_SIZE=16
+OLLAMA_BASE_URL=http://host.docker.internal:11434
+OLLAMA_EMBEDDINGS_PATH=/api/embeddings
+```
+
+`deterministic` is the default provider and is suitable for local verification and automated tests. To use real Ollama embeddings, run:
+
+```powershell
+ollama pull nomic-embed-text
+```
+
+Then set:
+
+```env
+EMBEDDING_PROVIDER=ollama
+OLLAMA_BASE_URL=http://host.docker.internal:11434
+```
+
+If Ollama runs in the same Linux network as the backend, set `OLLAMA_BASE_URL` to that service URL instead. `EMBEDDING_DIMENSION` must match the model output dimension.
+
+### pgvector and Docker
+
+Docker Compose uses `pgvector/pgvector:pg16` for PostgreSQL. On application startup, PostgreSQL environments run `CREATE EXTENSION IF NOT EXISTS vector` and backfill nullable module-six columns with `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`. Existing Docker volumes are kept; do not delete data by default. If an old container image does not include pgvector, rebuild/recreate the container without removing the volume:
+
+```powershell
+docker compose up -d --build
+docker compose ps
+```
+
+### API Examples
+
+```http
+POST /api/documents/{id}/embed
+Authorization: Bearer <token>
+```
+
+```http
+GET /api/documents/{id}/embedding-status
+Authorization: Bearer <token>
+```
+
+```http
+POST /api/documents/search-chunks
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "query": "semantic search query",
+  "topK": 5,
+  "documentId": 123
+}
+```
+
+`documentId` is optional. If present, it is first checked with `documentId + currentUserId`; another user's document returns 404.
+
+### Verification
+
+```powershell
+cd backend
+.\mvnw.cmd test
+```
+
+Optional Docker smoke flow:
+
+```powershell
+.\scripts\module6-smoke.ps1 -BaseUrl "http://localhost:8080"
+```
+
 ## Backend Module 5: 文本分块 Chunking
 
 模块五在文档解析能力之上新增文本分块能力，为后续 embedding 和向量检索做准备。本模块只负责 chunking，不包含 embedding、pgvector、Ollama、LangChain4j、RAG 问答或聊天接口。
