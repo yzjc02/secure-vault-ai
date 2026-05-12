@@ -12,7 +12,6 @@ public class SimilarChunkResponse {
     private Double score;
     private String content;
     private String contentPreview;
-    private String embeddingModel;
     private LocalDateTime embeddedAt;
 
     public SimilarChunkResponse() {
@@ -25,7 +24,6 @@ public class SimilarChunkResponse {
                                 Integer chunkIndex,
                                 Double score,
                                 String content,
-                                String embeddingModel,
                                 LocalDateTime embeddedAt) {
         this.chunkId = chunkId;
         this.documentId = documentId;
@@ -35,7 +33,6 @@ public class SimilarChunkResponse {
         this.score = safeScore(score);
         this.content = content;
         this.contentPreview = preview(content);
-        this.embeddingModel = embeddingModel;
         this.embeddedAt = embeddedAt;
     }
 
@@ -70,15 +67,9 @@ public class SimilarChunkResponse {
     public void setChunkIndex(Integer chunkIndex) { this.chunkIndex = chunkIndex; }
     public Double getScore() { return score; }
     public void setScore(Double score) { this.score = safeScore(score); }
-    public String getContent() { return content; }
-    public void setContent(String content) {
-        this.content = content;
-        this.contentPreview = preview(content);
-    }
+    public String content() { return content; }
     public String getContentPreview() { return contentPreview; }
     public void setContentPreview(String contentPreview) { this.contentPreview = contentPreview; }
-    public String getEmbeddingModel() { return embeddingModel; }
-    public void setEmbeddingModel(String embeddingModel) { this.embeddingModel = embeddingModel; }
     public LocalDateTime getEmbeddedAt() { return embeddedAt; }
     public void setEmbeddedAt(LocalDateTime embeddedAt) { this.embeddedAt = embeddedAt; }
 }

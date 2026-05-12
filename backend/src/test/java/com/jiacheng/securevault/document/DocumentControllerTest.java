@@ -44,7 +44,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "jwt.secret=0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
         "jwt.expiration=86400000",
         "app.file-storage.upload-dir=${java.io.tmpdir}/secure-vault-ai-test-uploads",
-        "app.file-storage.max-file-size=4096"
+        "app.file-storage.max-file-size=4096",
+        "secure-vault.security.file-encryption.key=module8-test-key-material-32-chars-minimum"
 })
 @AutoConfigureMockMvc
 class DocumentControllerTest {
@@ -198,7 +199,7 @@ class DocumentControllerTest {
                         .header("Authorization", bearer(tokenB)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(404))
-                .andExpect(jsonPath("$.message").value("文档不存在"));
+                .andExpect(jsonPath("$.message").value("Document not found"));
     }
 
     @Test
@@ -218,7 +219,7 @@ class DocumentControllerTest {
                                 """))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(404))
-                .andExpect(jsonPath("$.message").value("文档不存在"));
+                .andExpect(jsonPath("$.message").value("Document not found"));
     }
 
     @Test
@@ -231,7 +232,7 @@ class DocumentControllerTest {
                         .header("Authorization", bearer(tokenB)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(404))
-                .andExpect(jsonPath("$.message").value("文档不存在"));
+                .andExpect(jsonPath("$.message").value("Document not found"));
     }
 
     @Test
@@ -265,7 +266,7 @@ class DocumentControllerTest {
                 .andExpect(jsonPath("$.data.description", nullValue()))
                 .andExpect(jsonPath("$.data.status").value("CHUNKED"))
                 .andExpect(jsonPath("$.data.originalFilename").value("notes.txt"))
-                .andExpect(jsonPath("$.data.storedFilename").value(containsString(".txt")))
+                .andExpect(jsonPath("$.data.storedFilename").doesNotExist())
                 .andExpect(jsonPath("$.data.fileType").value("txt"))
                 .andExpect(jsonPath("$.data.fileSize").value(5))
                 .andExpect(jsonPath("$.data.contentType").value(MediaType.TEXT_PLAIN_VALUE))
@@ -277,10 +278,15 @@ class DocumentControllerTest {
                 .andExpect(jsonPath("$.data.filePath").doesNotExist())
                 .andReturn();
 
-        String storedFilename = extractString(result.getResponse().getContentAsString(), "storedFilename");
         long docId = extractLong(result.getResponse().getContentAsString(), "id");
-        assertThat(Files.exists(fileStorageService.getUploadRoot().resolve(storedFilename))).isTrue();
         Document chunkedDocument = documentRepository.findById(docId).orElseThrow();
+        Path storedPath = fileStorageService.getUploadRoot().resolve(chunkedDocument.getStoredFilename());
+        assertThat(Files.exists(storedPath)).isTrue();
+        assertThat(chunkedDocument.getEncrypted()).isTrue();
+        assertThat(chunkedDocument.getEncryptionAlgorithm()).isEqualTo("AES_GCM");
+        assertThat(new String(Files.readAllBytes(storedPath), StandardCharsets.ISO_8859_1)).doesNotContain("hello");
+        assertThat(fileStorageService.readFileBytes(chunkedDocument.getStoredFilename(), chunkedDocument.getFilePath()))
+                .isEqualTo("hello".getBytes(StandardCharsets.UTF_8));
         assertThat(documentChunkRepository.countByUserIdAndDocumentId(chunkedDocument.getUserId(), docId))
                 .isEqualTo(chunkedDocument.getChunkCount().longValue());
 
@@ -517,19 +523,19 @@ class DocumentControllerTest {
                         .header("Authorization", bearer(tokenB)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(404))
-                .andExpect(jsonPath("$.message").value("文档不存在"));
+                .andExpect(jsonPath("$.message").value("Document not found"));
 
         mockMvc.perform(get("/api/documents/{id}/text", docA)
                         .header("Authorization", bearer(tokenB)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(404))
-                .andExpect(jsonPath("$.message").value("文档不存在"));
+                .andExpect(jsonPath("$.message").value("Document not found"));
 
         mockMvc.perform(post("/api/documents/{id}/parse", docA)
                         .header("Authorization", bearer(tokenB)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(404))
-                .andExpect(jsonPath("$.message").value("文档不存在"));
+                .andExpect(jsonPath("$.message").value("Document not found"));
     }
 
     @Test
@@ -577,7 +583,7 @@ class DocumentControllerTest {
                         .header("Authorization", bearer(token)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400))
-                .andExpect(jsonPath("$.message").value("该文档没有可解析的上传文件"));
+                .andExpect(jsonPath("$.message").value("Document has no uploaded file to parse"));
     }
 
     @Test
@@ -592,14 +598,14 @@ class DocumentControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.status").value("FAILED"))
-                .andExpect(jsonPath("$.data.errorMessage").value("本地文件不存在"))
+                .andExpect(jsonPath("$.data.errorMessage").value("File not found"))
                 .andExpect(jsonPath("$.data.textLength").value(0))
                 .andExpect(jsonPath("$.data.parsedAt", notNullValue()))
                 .andExpect(jsonPath("$.data.filePath").doesNotExist());
 
         Document failedDocument = documentRepository.findById(docId).orElseThrow();
         assertThat(failedDocument.getStatus()).isEqualTo("FAILED");
-        assertThat(failedDocument.getErrorMessage()).isEqualTo("本地文件不存在");
+        assertThat(failedDocument.getErrorMessage()).isEqualTo("File not found");
     }
 
     @Test
@@ -646,13 +652,52 @@ class DocumentControllerTest {
         assertThat(Files.exists(storedFile)).isTrue();
         assertThat(documentChunkRepository.countByUserIdAndDocumentId(document.getUserId(), docId)).isGreaterThan(0);
 
-        mockMvc.perform(delete("/api/documents/{id}", docId)
+        MvcResult deleteResult = mockMvc.perform(delete("/api/documents/{id}", docId)
                         .header("Authorization", bearer(token)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0));
+                .andExpect(jsonPath("$.code").value(0))
+                .andReturn();
+
+        assertNoSensitiveFields(deleteResult.getResponse().getContentAsString());
 
         assertThat(Files.exists(storedFile)).isFalse();
         assertThat(documentChunkRepository.countByUserIdAndDocumentId(document.getUserId(), docId)).isZero();
+
+        mockMvc.perform(get("/api/documents/{id}", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/documents/{id}/chunks", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/documents/{id}/embed", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/documents/{id}/embedding-status", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void shouldDeleteDocumentWhenLocalFileIsAlreadyMissing() throws Exception {
+        String token = registerAndLogin("alicemissingfiledelete");
+        long docId = uploadDocument(token, "missing-delete.txt", "delete should be idempotent when file is missing");
+        Document document = documentRepository.findById(docId).orElseThrow();
+        Path storedFile = fileStorageService.getUploadRoot().resolve(document.getStoredFilename());
+        assertThat(Files.deleteIfExists(storedFile)).isTrue();
+
+        MvcResult deleteResult = mockMvc.perform(delete("/api/documents/{id}", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andReturn();
+
+        assertNoSensitiveFields(deleteResult.getResponse().getContentAsString());
+        assertThat(documentRepository.findById(docId)).isEmpty();
+        assertThat(documentChunkRepository.countByUserIdAndDocumentId(document.getUserId(), docId)).isZero();
+
+        mockMvc.perform(get("/api/documents/{id}", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -664,7 +709,7 @@ class DocumentControllerTest {
                         .header("Authorization", bearer(token)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400))
-                .andExpect(jsonPath("$.message").value("上传文件不能为空"));
+                .andExpect(jsonPath("$.message").value("Upload file must not be empty"));
     }
 
     @Test
@@ -677,7 +722,7 @@ class DocumentControllerTest {
                         .header("Authorization", bearer(token)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400))
-                .andExpect(jsonPath("$.message").value("不支持的文件类型，仅支持 pdf、docx、txt、md、markdown"));
+                .andExpect(jsonPath("$.message").value("Unsupported file type. Only pdf, docx, txt, md, markdown are allowed"));
     }
 
     @Test
@@ -690,7 +735,7 @@ class DocumentControllerTest {
                         .header("Authorization", bearer(token)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400))
-                .andExpect(jsonPath("$.message").value("不支持的文件类型，仅支持 pdf、docx、txt、md、markdown"));
+                .andExpect(jsonPath("$.message").value("Unsupported file type. Only pdf, docx, txt, md, markdown are allowed"));
     }
 
     @Test
@@ -702,7 +747,7 @@ class DocumentControllerTest {
                         .header("Authorization", bearer(token)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400))
-                .andExpect(jsonPath("$.message").value("文件大小不能超过 4096B"));
+                .andExpect(jsonPath("$.message").value("File size must not exceed 4096B"));
     }
 
     @Test
@@ -759,13 +804,15 @@ class DocumentControllerTest {
                 .andExpect(jsonPath("$.data.status").value("EMBEDDED"))
                 .andExpect(jsonPath("$.data.embeddedChunkCount", greaterThan(0)))
                 .andExpect(jsonPath("$.data.embeddedAt", notNullValue()))
-                .andExpect(jsonPath("$.data.embeddingModel").value("nomic-embed-text"))
-                .andExpect(jsonPath("$.data.embeddingDimension").value(768))
+                .andExpect(jsonPath("$.data.embeddingModel").doesNotExist())
+                .andExpect(jsonPath("$.data.embeddingDimension").doesNotExist())
                 .andExpect(jsonPath("$.data.filePath").doesNotExist())
                 .andReturn();
 
         String embedJson = embedResult.getResponse().getContentAsString();
         assertThat(embedJson).doesNotContain("\"embedding\":");
+        assertThat(embedJson).doesNotContain("\"embeddingModel\"");
+        assertThat(embedJson).doesNotContain("\"embeddingDimension\"");
         assertThat(embedJson).doesNotContain("\"userId\"");
         assertThat(embedJson).doesNotContain("\"filePath\"");
         assertThat(documentChunkRepository.findAllByUserIdAndDocumentIdOrderByChunkIndexAsc(
@@ -779,8 +826,8 @@ class DocumentControllerTest {
                 .andExpect(jsonPath("$.data.status").value("EMBEDDED"))
                 .andExpect(jsonPath("$.data.chunkCount", greaterThan(0)))
                 .andExpect(jsonPath("$.data.embeddedChunkCount", greaterThan(0)))
-                .andExpect(jsonPath("$.data.embeddingModel").value("nomic-embed-text"))
-                .andExpect(jsonPath("$.data.embeddingDimension").value(768))
+                .andExpect(jsonPath("$.data.embeddingModel").doesNotExist())
+                .andExpect(jsonPath("$.data.embeddingDimension").doesNotExist())
                 .andExpect(jsonPath("$.data.filePath").doesNotExist())
                 .andExpect(jsonPath("$.data.userId").doesNotExist());
     }
@@ -855,7 +902,7 @@ class DocumentControllerTest {
                 .andExpect(jsonPath("$.data", hasSize(1)))
                 .andExpect(jsonPath("$.data[0].documentId").value(docId))
                 .andExpect(jsonPath("$.data[0].chunkIndex").value(0))
-                .andExpect(jsonPath("$.data[0].content").value(containsString("semantic search target")))
+                .andExpect(jsonPath("$.data[0].content").doesNotExist())
                 .andExpect(jsonPath("$.data[0].contentPreview").value(containsString("semantic search target")))
                 .andExpect(jsonPath("$.data[0].score", notNullValue()))
                 .andExpect(jsonPath("$.data[0].embedding").doesNotExist())
@@ -955,6 +1002,57 @@ class DocumentControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data", hasSize(1)))
                 .andExpect(jsonPath("$.data[0].documentId").value(docA));
+    }
+
+    @Test
+    void keyDocumentApisShouldNotLeakSensitiveFields() throws Exception {
+        String token = registerAndLogin("alice");
+        long docId = uploadDocument(token, "privacy.txt", "module eight privacy semantic content");
+        assertNoSensitiveFields(mockMvc.perform(post("/api/documents/{id}/embed", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+
+        assertNoSensitiveFields(mockMvc.perform(get("/api/documents")
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+
+        assertNoSensitiveFields(mockMvc.perform(get("/api/documents/{id}", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+
+        assertNoSensitiveFields(mockMvc.perform(get("/api/documents/{id}/chunks", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+
+        assertNoSensitiveFields(mockMvc.perform(get("/api/documents/{id}/embedding-status", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+
+        assertNoSensitiveFields(mockMvc.perform(post("/api/documents/search-chunks")
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"query":"privacy semantic","topK":5}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
     }
 
     private String registerAndLogin(String username) throws Exception {
@@ -1061,6 +1159,20 @@ class DocumentControllerTest {
             throw new IllegalStateException("Missing JSON number field: " + fieldName);
         }
         return Long.parseLong(matcher.group(1));
+    }
+
+    private void assertNoSensitiveFields(String json) {
+        assertThat(json)
+                .doesNotContain("filePath")
+                .doesNotContain("storedFilename")
+                .doesNotContain("userId")
+                .doesNotContain("embedding")
+                .doesNotContain("fullPrompt")
+                .doesNotContain("encryptionKey")
+                .doesNotContain("jdbc:")
+                .doesNotContain("Bearer ")
+                .doesNotContain("C:\\")
+                .doesNotContain("/uploads/");
     }
 
     private void cleanUploadRoot() throws Exception {

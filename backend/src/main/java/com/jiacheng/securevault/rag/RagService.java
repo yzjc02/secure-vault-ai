@@ -12,9 +12,9 @@ import com.jiacheng.securevault.conversation.entity.Conversation;
 import com.jiacheng.securevault.conversation.service.ConversationService;
 import com.jiacheng.securevault.document.dto.SemanticSearchRequest;
 import com.jiacheng.securevault.document.dto.SimilarChunkResponse;
-import com.jiacheng.securevault.document.repository.DocumentRepository;
 import com.jiacheng.securevault.document.service.DocumentEmbeddingService;
 import com.jiacheng.securevault.exception.BusinessException;
+import com.jiacheng.securevault.security.AccessControlService;
 import com.jiacheng.securevault.security.CurrentUserService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,7 +28,7 @@ public class RagService {
     private static final String DOCUMENT_NOT_FOUND = "Document not found";
 
     private final CurrentUserService currentUserService;
-    private final DocumentRepository documentRepository;
+    private final AccessControlService accessControlService;
     private final DocumentEmbeddingService documentEmbeddingService;
     private final ConversationService conversationService;
     private final RagPromptBuilder promptBuilder;
@@ -36,14 +36,14 @@ public class RagService {
     private final ChatModelClient chatModelClient;
 
     public RagService(CurrentUserService currentUserService,
-                      DocumentRepository documentRepository,
+                      AccessControlService accessControlService,
                       DocumentEmbeddingService documentEmbeddingService,
                       ConversationService conversationService,
                       RagPromptBuilder promptBuilder,
                       RagProperties ragProperties,
                       ChatModelClient chatModelClient) {
         this.currentUserService = currentUserService;
-        this.documentRepository = documentRepository;
+        this.accessControlService = accessControlService;
         this.documentEmbeddingService = documentEmbeddingService;
         this.conversationService = conversationService;
         this.promptBuilder = promptBuilder;
@@ -57,8 +57,8 @@ public class RagService {
         String question = normalizeQuestion(request.getQuestion());
         int topK = normalizeTopK(request.getTopK());
         Long documentId = request.getDocumentId();
-        if (documentId != null && !documentRepository.existsByIdAndUserId(documentId, currentUserId)) {
-            throw new BusinessException(404, DOCUMENT_NOT_FOUND);
+        if (documentId != null) {
+            accessControlService.requireOwnedDocument(documentId, currentUserId);
         }
         Conversation conversation = request.getConversationId() == null
                 ? conversationService.createConversation(currentUserId, question)

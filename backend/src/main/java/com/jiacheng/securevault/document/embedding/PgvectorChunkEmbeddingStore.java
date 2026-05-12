@@ -88,7 +88,6 @@ public class PgvectorChunkEmbeddingStore implements ChunkEmbeddingStore {
                 rs.getInt("chunk_index"),
                 rs.getDouble("score"),
                 rs.getString("content"),
-                rs.getString("embedding_model"),
                 toLocalDateTime(rs.getTimestamp("embedded_at"))
         );
     }

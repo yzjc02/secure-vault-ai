@@ -1,8 +1,8 @@
 package com.jiacheng.securevault.document.parser;
 
-import java.nio.file.Path;
+import java.io.InputStream;
 
 public interface DocumentTextParser {
 
-    String parse(Path filePath, String fileType, String contentType);
+    String parse(InputStream inputStream, String fileType, String contentType);
 }

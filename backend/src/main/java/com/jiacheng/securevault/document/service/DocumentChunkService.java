@@ -7,6 +7,7 @@ import com.jiacheng.securevault.document.entity.DocumentChunk;
 import com.jiacheng.securevault.document.repository.DocumentChunkRepository;
 import com.jiacheng.securevault.document.repository.DocumentRepository;
 import com.jiacheng.securevault.exception.BusinessException;
+import com.jiacheng.securevault.security.AccessControlService;
 import com.jiacheng.securevault.security.CurrentUserService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,15 +27,18 @@ public class DocumentChunkService {
     private final DocumentRepository documentRepository;
     private final DocumentChunkRepository documentChunkRepository;
     private final CurrentUserService currentUserService;
+    private final AccessControlService accessControlService;
     private final TextChunkingService textChunkingService;
 
     public DocumentChunkService(DocumentRepository documentRepository,
                                 DocumentChunkRepository documentChunkRepository,
                                 CurrentUserService currentUserService,
+                                AccessControlService accessControlService,
                                 TextChunkingService textChunkingService) {
         this.documentRepository = documentRepository;
         this.documentChunkRepository = documentChunkRepository;
         this.currentUserService = currentUserService;
+        this.accessControlService = accessControlService;
         this.textChunkingService = textChunkingService;
     }
 
@@ -98,8 +102,7 @@ public class DocumentChunkService {
     }
 
     private Document getOwnedDocument(Long documentId, Long currentUserId) {
-        return documentRepository.findByIdAndUserId(documentId, currentUserId)
-                .orElseThrow(() -> new BusinessException(404, DOCUMENT_NOT_FOUND));
+        return accessControlService.requireOwnedDocument(documentId, currentUserId);
     }
 
     private void validateChunkable(Document document) {

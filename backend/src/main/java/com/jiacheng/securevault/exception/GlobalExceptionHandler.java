@@ -44,7 +44,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException ex) {
         return ResponseEntity.status(resolveStatus(ex.getCode()))
                 .contentType(EncodingConfig.APPLICATION_JSON_UTF8)
-                .body(ApiResponse.fail(ex.getCode(), ex.getMessage()));
+                .body(ApiResponse.fail(ex.getCode(), safeMessage(ex.getMessage())));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
@@ -115,5 +115,19 @@ public class GlobalExceptionHandler {
             return (maxFileSize / mb) + "MB";
         }
         return maxFileSize + "B";
+    }
+
+    private String safeMessage(String message) {
+        if (message == null || message.isBlank()) {
+            return "Request failed";
+        }
+        String safe = message.replace('\r', ' ').replace('\n', ' ').trim();
+        if (safe.contains("jdbc:") || safe.contains("Bearer ") || safe.contains("FILE_ENCRYPTION_KEY")) {
+            return "Request failed";
+        }
+        if (safe.contains("\\") || safe.contains("/uploads/") || safe.contains("/app/data/uploads")) {
+            return "Request failed";
+        }
+        return safe.length() > 300 ? safe.substring(0, 300) : safe;
     }
 }

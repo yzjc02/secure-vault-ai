@@ -10,6 +10,7 @@ import com.jiacheng.securevault.document.repository.DocumentChunkRepository;
 import com.jiacheng.securevault.document.repository.DocumentRepository;
 import com.jiacheng.securevault.document.service.DocumentEmbeddingService;
 import com.jiacheng.securevault.exception.BusinessException;
+import com.jiacheng.securevault.security.AccessControlService;
 import com.jiacheng.securevault.security.CurrentUserService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,7 +18,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -33,6 +33,7 @@ class DocumentEmbeddingServiceTest {
         DocumentRepository documentRepository = mock(DocumentRepository.class);
         DocumentChunkRepository chunkRepository = mock(DocumentChunkRepository.class);
         CurrentUserService currentUserService = mock(CurrentUserService.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
         EmbeddingClient embeddingClient = mock(EmbeddingClient.class);
         ChunkEmbeddingStore chunkEmbeddingStore = mock(ChunkEmbeddingStore.class);
         EmbeddingProperties properties = new EmbeddingProperties();
@@ -40,6 +41,7 @@ class DocumentEmbeddingServiceTest {
                 documentRepository,
                 chunkRepository,
                 currentUserService,
+                accessControlService,
                 embeddingClient,
                 chunkEmbeddingStore,
                 properties
@@ -48,7 +50,7 @@ class DocumentEmbeddingServiceTest {
         Document document = document(10L, 1L);
         DocumentChunk chunk = chunk(100L, 10L, 1L);
         when(currentUserService.getCurrentUserId()).thenReturn(1L);
-        when(documentRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(document));
+        when(accessControlService.requireOwnedDocument(10L, 1L)).thenReturn(document);
         when(chunkRepository.findAllByUserIdAndDocumentIdOrderByChunkIndexAsc(1L, 10L)).thenReturn(List.of(chunk));
         when(documentRepository.save(any(Document.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(embeddingClient.embed("chunk content")).thenThrow(new EmbeddingException("Embedding model request failed"));

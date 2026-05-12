@@ -52,7 +52,6 @@ class RagPromptBuilderTest {
                 0.87d,
                 content,
                 content,
-                "deterministic",
                 LocalDateTime.now()
         );
     }

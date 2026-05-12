@@ -11,7 +11,6 @@ public class DocumentResponse {
     private String description;
     private String status;
     private String originalFilename;
-    private String storedFilename;
     private String fileType;
     private Long fileSize;
     private String contentType;
@@ -22,8 +21,6 @@ public class DocumentResponse {
     private LocalDateTime chunkedAt;
     private Integer embeddedChunkCount;
     private LocalDateTime embeddedAt;
-    private String embeddingModel;
-    private Integer embeddingDimension;
     private String extractedTextPreview;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -36,7 +33,6 @@ public class DocumentResponse {
                             String description,
                             String status,
                             String originalFilename,
-                            String storedFilename,
                             String fileType,
                             Long fileSize,
                             String contentType,
@@ -47,8 +43,6 @@ public class DocumentResponse {
                             LocalDateTime chunkedAt,
                             Integer embeddedChunkCount,
                             LocalDateTime embeddedAt,
-                            String embeddingModel,
-                            Integer embeddingDimension,
                             String extractedTextPreview,
                             LocalDateTime createdAt,
                             LocalDateTime updatedAt) {
@@ -57,7 +51,6 @@ public class DocumentResponse {
         this.description = description;
         this.status = status;
         this.originalFilename = originalFilename;
-        this.storedFilename = storedFilename;
         this.fileType = fileType;
         this.fileSize = fileSize;
         this.contentType = contentType;
@@ -68,8 +61,6 @@ public class DocumentResponse {
         this.chunkedAt = chunkedAt;
         this.embeddedChunkCount = embeddedChunkCount;
         this.embeddedAt = embeddedAt;
-        this.embeddingModel = embeddingModel;
-        this.embeddingDimension = embeddingDimension;
         this.extractedTextPreview = extractedTextPreview;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
@@ -82,7 +73,6 @@ public class DocumentResponse {
                 document.getDescription(),
                 document.getStatus(),
                 document.getOriginalFilename(),
-                document.getStoredFilename(),
                 document.getFileType(),
                 document.getFileSize(),
                 document.getContentType(),
@@ -93,8 +83,6 @@ public class DocumentResponse {
                 document.getChunkedAt(),
                 embeddedChunkCountOrZero(document),
                 document.getEmbeddedAt(),
-                document.getEmbeddingModel(),
-                document.getEmbeddingDimension(),
                 includeTextPreview ? preview(document.getExtractedText()) : null,
                 document.getCreatedAt(),
                 document.getUpdatedAt()
@@ -127,8 +115,6 @@ public class DocumentResponse {
     public void setStatus(String status) { this.status = status; }
     public String getOriginalFilename() { return originalFilename; }
     public void setOriginalFilename(String originalFilename) { this.originalFilename = originalFilename; }
-    public String getStoredFilename() { return storedFilename; }
-    public void setStoredFilename(String storedFilename) { this.storedFilename = storedFilename; }
     public String getFileType() { return fileType; }
     public void setFileType(String fileType) { this.fileType = fileType; }
     public Long getFileSize() { return fileSize; }
@@ -149,10 +135,6 @@ public class DocumentResponse {
     public void setEmbeddedChunkCount(Integer embeddedChunkCount) { this.embeddedChunkCount = embeddedChunkCount; }
     public LocalDateTime getEmbeddedAt() { return embeddedAt; }
     public void setEmbeddedAt(LocalDateTime embeddedAt) { this.embeddedAt = embeddedAt; }
-    public String getEmbeddingModel() { return embeddingModel; }
-    public void setEmbeddingModel(String embeddingModel) { this.embeddingModel = embeddingModel; }
-    public Integer getEmbeddingDimension() { return embeddingDimension; }
-    public void setEmbeddingDimension(Integer embeddingDimension) { this.embeddingDimension = embeddingDimension; }
     public String getExtractedTextPreview() { return extractedTextPreview; }
     public void setExtractedTextPreview(String extractedTextPreview) { this.extractedTextPreview = extractedTextPreview; }
     public LocalDateTime getCreatedAt() { return createdAt; }

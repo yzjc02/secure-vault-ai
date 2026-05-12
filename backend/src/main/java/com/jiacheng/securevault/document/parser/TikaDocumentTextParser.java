@@ -12,8 +12,6 @@ import org.xml.sax.SAXException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Set;
 
@@ -25,22 +23,22 @@ public class TikaDocumentTextParser implements DocumentTextParser {
     private final AutoDetectParser parser = new AutoDetectParser();
 
     @Override
-    public String parse(Path filePath, String fileType, String contentType) {
-        try {
+    public String parse(InputStream inputStream, String fileType, String contentType) {
+        try (InputStream stream = inputStream) {
             String rawText = isPlainText(fileType)
-                    ? Files.readString(filePath, StandardCharsets.UTF_8)
-                    : parseWithTika(filePath);
+                    ? new String(stream.readAllBytes(), StandardCharsets.UTF_8)
+                    : parseWithTika(stream);
             String cleanedText = clean(rawText);
             if (!StringUtils.hasText(cleanedText)) {
-                throw new DocumentParseException("未抽取到有效文本");
+                throw new DocumentParseException("No valid text extracted");
             }
             return cleanedText;
         } catch (DocumentParseException ex) {
             throw ex;
         } catch (IOException ex) {
-            throw new DocumentParseException("文档读取失败", ex);
+            throw new DocumentParseException("Document read failed", ex);
         } catch (TikaException | SAXException ex) {
-            throw new DocumentParseException("文档文本解析失败", ex);
+            throw new DocumentParseException("Document text parse failed", ex);
         }
     }
 
@@ -48,14 +46,11 @@ public class TikaDocumentTextParser implements DocumentTextParser {
         return fileType != null && PLAIN_TEXT_TYPES.contains(fileType.toLowerCase(Locale.ROOT));
     }
 
-    private String parseWithTika(Path filePath) throws IOException, TikaException, SAXException {
+    private String parseWithTika(InputStream inputStream) throws IOException, TikaException, SAXException {
         Metadata metadata = new Metadata();
         ParseContext parseContext = new ParseContext();
         BodyContentHandler handler = new BodyContentHandler(-1);
-
-        try (InputStream inputStream = Files.newInputStream(filePath)) {
-            parser.parse(inputStream, handler, metadata, parseContext);
-        }
+        parser.parse(inputStream, handler, metadata, parseContext);
         return handler.toString();
     }
 

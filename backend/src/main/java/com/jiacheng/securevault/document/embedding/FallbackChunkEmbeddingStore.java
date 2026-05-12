@@ -71,7 +71,6 @@ public class FallbackChunkEmbeddingStore implements ChunkEmbeddingStore {
                 chunk.getChunkIndex(),
                 score,
                 chunk.getContent(),
-                chunk.getEmbeddingModel(),
                 chunk.getEmbeddedAt()
         );
     }

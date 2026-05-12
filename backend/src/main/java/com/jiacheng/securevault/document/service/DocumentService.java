@@ -7,6 +7,7 @@ import com.jiacheng.securevault.document.entity.Document;
 import com.jiacheng.securevault.document.repository.DocumentChunkRepository;
 import com.jiacheng.securevault.document.repository.DocumentRepository;
 import com.jiacheng.securevault.exception.BusinessException;
+import com.jiacheng.securevault.security.AccessControlService;
 import com.jiacheng.securevault.security.CurrentUserService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,17 +24,20 @@ public class DocumentService {
 
     private final DocumentRepository documentRepository;
     private final CurrentUserService currentUserService;
+    private final AccessControlService accessControlService;
     private final FileStorageService fileStorageService;
     private final DocumentParsingService documentParsingService;
     private final DocumentChunkRepository documentChunkRepository;
 
     public DocumentService(DocumentRepository documentRepository,
                            CurrentUserService currentUserService,
+                           AccessControlService accessControlService,
                            FileStorageService fileStorageService,
                            DocumentParsingService documentParsingService,
                            DocumentChunkRepository documentChunkRepository) {
         this.documentRepository = documentRepository;
         this.currentUserService = currentUserService;
+        this.accessControlService = accessControlService;
         this.fileStorageService = fileStorageService;
         this.documentParsingService = documentParsingService;
         this.documentChunkRepository = documentChunkRepository;
@@ -72,6 +76,9 @@ public class DocumentService {
         document.setFileType(storedFile.fileType());
         document.setFileSize(storedFile.fileSize());
         document.setContentType(storedFile.contentType());
+        document.setEncrypted(storedFile.encrypted());
+        document.setEncryptionAlgorithm(storedFile.encryptionAlgorithm());
+        document.setEncryptionKeyId(storedFile.encryptionKeyId());
         document.setChunkCount(0);
         document.setChunkedAt(null);
 
@@ -95,14 +102,13 @@ public class DocumentService {
 
     @Transactional(readOnly = true)
     public DocumentResponse get(Long id) {
-        Long currentUserId = currentUserService.getCurrentUserId();
-        return toResponse(getOwnedDocument(id, currentUserId));
+        return toResponse(accessControlService.requireOwnedDocument(id));
     }
 
     @Transactional
     public DocumentResponse update(Long id, DocumentUpdateRequest request) {
         Long currentUserId = currentUserService.getCurrentUserId();
-        Document document = getOwnedDocument(id, currentUserId);
+        Document document = accessControlService.requireOwnedDocument(id, currentUserId);
         document.setTitle(normalizeTitle(request.getTitle()));
         document.setDescription(normalizeDescription(request.getDescription()));
         return toResponse(documentRepository.save(document));
@@ -111,7 +117,7 @@ public class DocumentService {
     @Transactional
     public void delete(Long id) {
         Long currentUserId = currentUserService.getCurrentUserId();
-        Document document = getOwnedDocument(id, currentUserId);
+        Document document = accessControlService.requireOwnedDocument(id, currentUserId);
         fileStorageService.delete(document.getStoredFilename());
         documentChunkRepository.deleteByUserIdAndDocumentId(currentUserId, document.getId());
         documentRepository.delete(document);

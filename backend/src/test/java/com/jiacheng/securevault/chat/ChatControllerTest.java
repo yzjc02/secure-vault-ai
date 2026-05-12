@@ -43,6 +43,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "jwt.expiration=86400000",
         "app.file-storage.upload-dir=${java.io.tmpdir}/secure-vault-ai-module7-test-uploads",
         "app.file-storage.max-file-size=4096",
+        "secure-vault.security.file-encryption.key=module8-test-key-material-32-chars-minimum",
         "app.chat.provider=deterministic",
         "app.rag.default-top-k=5",
         "app.rag.max-top-k=5"
@@ -159,11 +160,7 @@ class ChatControllerTest {
                 .andReturn();
 
         String firstJson = firstAsk.getResponse().getContentAsString();
-        assertThat(firstJson).doesNotContain("\"embedding\":");
-        assertThat(firstJson).doesNotContain("\"filePath\"");
-        assertThat(firstJson).doesNotContain("\"userId\"");
-        assertThat(firstJson).doesNotContain("\"storedFilename\"");
-        assertThat(firstJson).doesNotContain("\"fullPrompt\"");
+        assertNoSensitiveFields(firstJson);
 
         long conversationId = extractLong(firstJson, "conversationId");
 
@@ -201,8 +198,7 @@ class ChatControllerTest {
                 .andExpect(jsonPath("$.data.messages[1].userId").doesNotExist())
                 .andReturn();
 
-        assertThat(messagesResult.getResponse().getContentAsString()).doesNotContain("\"filePath\"");
-        assertThat(messagesResult.getResponse().getContentAsString()).doesNotContain("\"embedding\":");
+        assertNoSensitiveFields(messagesResult.getResponse().getContentAsString());
 
         ChatMessage assistantMessage = chatMessageRepository.findById(extractLong(firstJson, "assistantMessageId"))
                 .orElseThrow();
@@ -303,7 +299,8 @@ class ChatControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data", hasSize(1)))
                 .andExpect(jsonPath("$.data[0].documentId").value(docId))
-                .andExpect(jsonPath("$.data[0].content").value(containsString("semantic search")))
+                .andExpect(jsonPath("$.data[0].content").doesNotExist())
+                .andExpect(jsonPath("$.data[0].contentPreview").value(containsString("semantic search")))
                 .andExpect(jsonPath("$.data[0].filePath").doesNotExist())
                 .andExpect(jsonPath("$.data[0].userId").doesNotExist())
                 .andExpect(jsonPath("$.data[0].embedding").doesNotExist());
@@ -369,6 +366,20 @@ class ChatControllerTest {
             throw new IllegalStateException("Missing JSON number field: " + fieldName);
         }
         return Long.parseLong(matcher.group(1));
+    }
+
+    private void assertNoSensitiveFields(String json) {
+        assertThat(json)
+                .doesNotContain("filePath")
+                .doesNotContain("storedFilename")
+                .doesNotContain("userId")
+                .doesNotContain("embedding")
+                .doesNotContain("fullPrompt")
+                .doesNotContain("encryptionKey")
+                .doesNotContain("jdbc:")
+                .doesNotContain("Bearer ")
+                .doesNotContain("C:\\")
+                .doesNotContain("/uploads/");
     }
 
     private void cleanUploadRoot() throws Exception {

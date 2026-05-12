@@ -14,6 +14,7 @@ import com.jiacheng.securevault.document.entity.DocumentChunk;
 import com.jiacheng.securevault.document.repository.DocumentChunkRepository;
 import com.jiacheng.securevault.document.repository.DocumentRepository;
 import com.jiacheng.securevault.exception.BusinessException;
+import com.jiacheng.securevault.security.AccessControlService;
 import com.jiacheng.securevault.security.CurrentUserService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +33,7 @@ public class DocumentEmbeddingService {
     private final DocumentRepository documentRepository;
     private final DocumentChunkRepository documentChunkRepository;
     private final CurrentUserService currentUserService;
+    private final AccessControlService accessControlService;
     private final EmbeddingClient embeddingClient;
     private final ChunkEmbeddingStore chunkEmbeddingStore;
     private final EmbeddingProperties embeddingProperties;
@@ -39,12 +41,14 @@ public class DocumentEmbeddingService {
     public DocumentEmbeddingService(DocumentRepository documentRepository,
                                     DocumentChunkRepository documentChunkRepository,
                                     CurrentUserService currentUserService,
+                                    AccessControlService accessControlService,
                                     EmbeddingClient embeddingClient,
                                     ChunkEmbeddingStore chunkEmbeddingStore,
                                     EmbeddingProperties embeddingProperties) {
         this.documentRepository = documentRepository;
         this.documentChunkRepository = documentChunkRepository;
         this.currentUserService = currentUserService;
+        this.accessControlService = accessControlService;
         this.embeddingClient = embeddingClient;
         this.chunkEmbeddingStore = chunkEmbeddingStore;
         this.embeddingProperties = embeddingProperties;
@@ -120,8 +124,7 @@ public class DocumentEmbeddingService {
     }
 
     private Document getOwnedDocument(Long documentId, Long currentUserId) {
-        return documentRepository.findByIdAndUserId(documentId, currentUserId)
-                .orElseThrow(() -> new BusinessException(404, DOCUMENT_NOT_FOUND));
+        return accessControlService.requireOwnedDocument(documentId, currentUserId);
     }
 
     private void markEmbeddingFailed(Document document, String message) {

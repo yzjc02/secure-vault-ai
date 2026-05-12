@@ -2,6 +2,64 @@
 
 Privacy-first personal knowledge vault powered by Spring Boot + RAG + Ollama.
 
+## Backend Module 8: Privacy and Security Hardening
+
+Module 8 hardens the existing document upload, parsing, chunking, embedding, RAG, and conversation flows without changing the Java 17 + Spring Boot 4 + Spring Data JPA baseline.
+
+### What Module 8 Adds
+
+- Local uploaded files are encrypted at rest with JDK AES-GCM (`AES/GCM/NoPadding`), random 12-byte IVs, and 128-bit tags.
+- File reads are transparently decrypted through `FileStorageService`, so Apache Tika parsing, chunking, embedding, semantic search, and RAG question answering continue to work.
+- Legacy plaintext files remain readable when they do not contain the `SVAIENC1` encryption header.
+- `AccessControlService` centralizes ownership checks for documents, chunks, conversations, and chat messages.
+- Cross-user access returns `404`, not `403`, to avoid revealing whether another user's resource exists.
+- API responses do not expose `filePath`, `storedFilename`, `userId`, embedding arrays, full prompts, encryption keys, local absolute paths, JDBC URLs, JWTs, or stack traces.
+- Deleting a document removes the local encrypted file and clears owned chunks and embedding data.
+
+### File Encryption Configuration
+
+```env
+FILE_ENCRYPTION_ENABLED=true
+FILE_ENCRYPTION_KEY=replace-with-base64-32-byte-key
+FILE_ENCRYPTION_DEV_KEY_FILE=.secure-vault/file-encryption.key
+```
+
+`FILE_ENCRYPTION_KEY` may be a Base64-encoded 32-byte AES key. A UTF-8 string of at least 32 characters is also accepted and is derived to a 256-bit key with SHA-256. The key is never printed to logs or returned by any API.
+
+For local non-production development, if `FILE_ENCRYPTION_KEY` is empty, the backend creates a local dev key file at `.secure-vault/file-encryption.key`. The `.secure-vault/` directory is gitignored. Production profiles (`prod` or `production`) must provide a stable `FILE_ENCRYPTION_KEY`; otherwise startup fails. Do not commit real keys to `.env.example`, `docker-compose.yml`, README, or source code.
+
+### User Isolation and Response Safety
+
+- Controllers and DTOs do not accept `userId`.
+- Services derive ownership from the current JWT/SecurityContext user.
+- Document, text, chunk, embedding/status, search, RAG ask, conversation list, and conversation message APIs all scope data by `currentUserId`.
+- RAG sources are safe snapshots: `documentId`, `documentTitle`/`originalFilename`, `chunkIndex`, `score`, and `contentPreview`.
+- Full prompts, file paths, stored filenames, user ids, encryption keys, and embedding arrays are never returned.
+
+### Delete Cleanup
+
+`DELETE /api/documents/{id}` first verifies ownership. It then deletes the local encrypted file, removes the user's `document_chunks` rows, clears embedding data stored with those chunks, and deletes the document record. Other users deleting the same id receive `404`.
+
+### Module 8 Verification
+
+```powershell
+cd C:\Users\yzjc1\secure-vault-ai\backend
+.\mvnw.cmd test
+```
+
+Optional Docker smoke flow:
+
+```powershell
+cd C:\Users\yzjc1\secure-vault-ai
+powershell -ExecutionPolicy Bypass -File .\scripts\module8-smoke.ps1
+```
+
+Successful smoke output ends with:
+
+```text
+MODULE 8 SMOKE TEST PASSED
+```
+
 ## Backend Module 7: RAG Question Answering
 
 Module 7 adds authenticated RAG question answering on top of module 6 semantic chunk search. It does not add frontend UI, streaming, WebSocket, agents, OCR, or LangChain/Spring AI.
@@ -87,7 +145,6 @@ Example response:
         "chunkIndex": 0,
         "score": 0.87,
         "contentPreview": "Secure Vault AI module seven validates RAG question answering...",
-        "embeddingModel": "nomic-embed-text",
         "embeddedAt": "2026-05-12T18:00:00"
       }
     ],
@@ -305,7 +362,7 @@ Authorization: Bearer <token>
 - 默认最大文件大小：`20MB`，可通过 `MAX_FILE_SIZE=20971520` 覆盖。
 - 默认本地上传目录：`./data/uploads`，Docker 环境默认 `FILE_STORAGE_DIR=/app/data/uploads`。
 - 删除文档时，如果该文档有关联上传文件，会同步删除本地文件。
-- API 响应会返回 `originalFilename`、`storedFilename`、`fileType`、`fileSize`、`contentType` 等元数据，不会暴露服务器真实 `filePath`。
+- API 响应会返回 `originalFilename`、`fileType`、`fileSize`、`contentType` 等安全元数据，不会暴露 `storedFilename` 或服务器真实 `filePath`。
 
 ### Windows PowerShell 上传示例
 

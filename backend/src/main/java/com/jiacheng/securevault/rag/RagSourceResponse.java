@@ -12,7 +12,6 @@ public class RagSourceResponse {
     private Integer chunkIndex;
     private Double score;
     private String contentPreview;
-    private String embeddingModel;
     private LocalDateTime embeddedAt;
 
     public RagSourceResponse() {
@@ -26,7 +25,6 @@ public class RagSourceResponse {
                              Integer chunkIndex,
                              Double score,
                              String contentPreview,
-                             String embeddingModel,
                              LocalDateTime embeddedAt) {
         this.sourceId = sourceId;
         this.chunkId = chunkId;
@@ -36,7 +34,6 @@ public class RagSourceResponse {
         this.chunkIndex = chunkIndex;
         this.score = score;
         this.contentPreview = contentPreview;
-        this.embeddingModel = embeddingModel;
         this.embeddedAt = embeddedAt;
     }
 
@@ -56,8 +53,6 @@ public class RagSourceResponse {
     public void setScore(Double score) { this.score = score; }
     public String getContentPreview() { return contentPreview; }
     public void setContentPreview(String contentPreview) { this.contentPreview = contentPreview; }
-    public String getEmbeddingModel() { return embeddingModel; }
-    public void setEmbeddingModel(String embeddingModel) { this.embeddingModel = embeddingModel; }
     public LocalDateTime getEmbeddedAt() { return embeddedAt; }
     public void setEmbeddedAt(LocalDateTime embeddedAt) { this.embeddedAt = embeddedAt; }
 }

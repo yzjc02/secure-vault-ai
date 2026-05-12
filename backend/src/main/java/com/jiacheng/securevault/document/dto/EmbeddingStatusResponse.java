@@ -10,8 +10,6 @@ public class EmbeddingStatusResponse {
     private String status;
     private Integer chunkCount;
     private Integer embeddedChunkCount;
-    private String embeddingModel;
-    private Integer embeddingDimension;
     private LocalDateTime embeddedAt;
     private LocalDateTime updatedAt;
     private String errorMessage;
@@ -23,8 +21,6 @@ public class EmbeddingStatusResponse {
                                    String status,
                                    Integer chunkCount,
                                    Integer embeddedChunkCount,
-                                   String embeddingModel,
-                                   Integer embeddingDimension,
                                    LocalDateTime embeddedAt,
                                    LocalDateTime updatedAt,
                                    String errorMessage) {
@@ -32,8 +28,6 @@ public class EmbeddingStatusResponse {
         this.status = status;
         this.chunkCount = chunkCount;
         this.embeddedChunkCount = embeddedChunkCount;
-        this.embeddingModel = embeddingModel;
-        this.embeddingDimension = embeddingDimension;
         this.embeddedAt = embeddedAt;
         this.updatedAt = updatedAt;
         this.errorMessage = errorMessage;
@@ -45,8 +39,6 @@ public class EmbeddingStatusResponse {
                 document.getStatus(),
                 chunkCount,
                 embeddedChunkCount,
-                document.getEmbeddingModel(),
-                document.getEmbeddingDimension(),
                 document.getEmbeddedAt(),
                 document.getUpdatedAt(),
                 document.getErrorMessage()
@@ -61,10 +53,6 @@ public class EmbeddingStatusResponse {
     public void setChunkCount(Integer chunkCount) { this.chunkCount = chunkCount; }
     public Integer getEmbeddedChunkCount() { return embeddedChunkCount; }
     public void setEmbeddedChunkCount(Integer embeddedChunkCount) { this.embeddedChunkCount = embeddedChunkCount; }
-    public String getEmbeddingModel() { return embeddingModel; }
-    public void setEmbeddingModel(String embeddingModel) { this.embeddingModel = embeddingModel; }
-    public Integer getEmbeddingDimension() { return embeddingDimension; }
-    public void setEmbeddingDimension(Integer embeddingDimension) { this.embeddingDimension = embeddingDimension; }
     public LocalDateTime getEmbeddedAt() { return embeddedAt; }
     public void setEmbeddedAt(LocalDateTime embeddedAt) { this.embeddedAt = embeddedAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

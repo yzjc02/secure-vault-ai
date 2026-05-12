@@ -63,6 +63,15 @@ public class Document {
     @Column(name = "content_type", length = 255)
     private String contentType;
 
+    @Column(name = "encrypted")
+    private Boolean encrypted = false;
+
+    @Column(name = "encryption_algorithm", length = 64)
+    private String encryptionAlgorithm;
+
+    @Column(name = "encryption_key_id", length = 64)
+    private String encryptionKeyId;
+
     @Column(name = "error_message", length = 1000)
     private String errorMessage;
 
@@ -114,6 +123,9 @@ public class Document {
         if (this.embeddedChunkCount == null) {
             this.embeddedChunkCount = 0;
         }
+        if (this.encrypted == null) {
+            this.encrypted = false;
+        }
     }
 
     @PreUpdate
@@ -143,6 +155,12 @@ public class Document {
     public void setFileSize(Long fileSize) { this.fileSize = fileSize; }
     public String getContentType() { return contentType; }
     public void setContentType(String contentType) { this.contentType = contentType; }
+    public Boolean getEncrypted() { return encrypted; }
+    public void setEncrypted(Boolean encrypted) { this.encrypted = encrypted; }
+    public String getEncryptionAlgorithm() { return encryptionAlgorithm; }
+    public void setEncryptionAlgorithm(String encryptionAlgorithm) { this.encryptionAlgorithm = encryptionAlgorithm; }
+    public String getEncryptionKeyId() { return encryptionKeyId; }
+    public void setEncryptionKeyId(String encryptionKeyId) { this.encryptionKeyId = encryptionKeyId; }
     public String getErrorMessage() { return errorMessage; }
     public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
     public String getExtractedText() { return extractedText; }

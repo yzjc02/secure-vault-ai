@@ -31,6 +31,13 @@ jwt:
   secret: ${JWT_SECRET:}
   expiration: ${JWT_EXPIRATION:86400000}
 
+secure-vault:
+  security:
+    file-encryption:
+      enabled: ${FILE_ENCRYPTION_ENABLED:true}
+      key: ${FILE_ENCRYPTION_KEY:}
+      dev-key-file: ${FILE_ENCRYPTION_DEV_KEY_FILE:.secure-vault/file-encryption.key}
+
 app:
   file-storage:
     upload-dir: ${FILE_STORAGE_DIR:./data/uploads}

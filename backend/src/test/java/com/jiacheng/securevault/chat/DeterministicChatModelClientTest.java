@@ -51,7 +51,6 @@ class DeterministicChatModelClientTest {
                 0,
                 0.9d,
                 "preview",
-                "deterministic",
                 LocalDateTime.now()
         );
     }

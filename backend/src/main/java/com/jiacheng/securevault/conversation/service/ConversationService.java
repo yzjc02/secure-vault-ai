@@ -10,6 +10,7 @@ import com.jiacheng.securevault.conversation.repository.ChatMessageRepository;
 import com.jiacheng.securevault.conversation.repository.ConversationRepository;
 import com.jiacheng.securevault.exception.BusinessException;
 import com.jiacheng.securevault.rag.RagSourceResponse;
+import com.jiacheng.securevault.security.AccessControlService;
 import com.jiacheng.securevault.security.CurrentUserService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,15 +30,18 @@ public class ConversationService {
     private final ConversationRepository conversationRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final CurrentUserService currentUserService;
+    private final AccessControlService accessControlService;
     private final ObjectMapper objectMapper;
 
     public ConversationService(ConversationRepository conversationRepository,
                                ChatMessageRepository chatMessageRepository,
                                CurrentUserService currentUserService,
+                               AccessControlService accessControlService,
                                ObjectMapper objectMapper) {
         this.conversationRepository = conversationRepository;
         this.chatMessageRepository = chatMessageRepository;
         this.currentUserService = currentUserService;
+        this.accessControlService = accessControlService;
         this.objectMapper = objectMapper;
     }
 
@@ -67,8 +71,7 @@ public class ConversationService {
 
     @Transactional(readOnly = true)
     public Conversation getOwnedConversation(Long conversationId, Long userId) {
-        return conversationRepository.findByIdAndUserId(conversationId, userId)
-                .orElseThrow(() -> new BusinessException(404, CONVERSATION_NOT_FOUND));
+        return accessControlService.requireOwnedConversation(conversationId, userId);
     }
 
     @Transactional

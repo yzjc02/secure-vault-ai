@@ -40,3 +40,5 @@ backend/target/
 uploads/
 data/uploads/
 backend/data/uploads/
+.secure-vault/
+backend/.secure-vault/
