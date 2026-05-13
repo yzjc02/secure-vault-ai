@@ -1,5 +1,8 @@
 package com.jiacheng.securevault.rag;
 
+import com.jiacheng.securevault.audit.enums.AuditAction;
+import com.jiacheng.securevault.audit.enums.AuditResourceType;
+import com.jiacheng.securevault.audit.service.AuditLogService;
 import com.jiacheng.securevault.chat.AskRequest;
 import com.jiacheng.securevault.chat.AskResponse;
 import com.jiacheng.securevault.chat.ChatCompletion;
@@ -34,6 +37,7 @@ public class RagService {
     private final RagPromptBuilder promptBuilder;
     private final RagProperties ragProperties;
     private final ChatModelClient chatModelClient;
+    private final AuditLogService auditLogService;
 
     public RagService(CurrentUserService currentUserService,
                       AccessControlService accessControlService,
@@ -41,7 +45,8 @@ public class RagService {
                       ConversationService conversationService,
                       RagPromptBuilder promptBuilder,
                       RagProperties ragProperties,
-                      ChatModelClient chatModelClient) {
+                      ChatModelClient chatModelClient,
+                      AuditLogService auditLogService) {
         this.currentUserService = currentUserService;
         this.accessControlService = accessControlService;
         this.documentEmbeddingService = documentEmbeddingService;
@@ -49,57 +54,72 @@ public class RagService {
         this.promptBuilder = promptBuilder;
         this.ragProperties = ragProperties;
         this.chatModelClient = chatModelClient;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional
     public AskResponse ask(AskRequest request) {
-        Long currentUserId = currentUserService.getCurrentUserId();
-        String question = normalizeQuestion(request.getQuestion());
-        int topK = normalizeTopK(request.getTopK());
-        Long documentId = request.getDocumentId();
-        if (documentId != null) {
-            accessControlService.requireOwnedDocument(documentId, currentUserId);
+        Long currentUserId = null;
+        Long conversationId = null;
+        try {
+            currentUserId = currentUserService.getCurrentUserId();
+            String question = normalizeQuestion(request.getQuestion());
+            int topK = normalizeTopK(request.getTopK());
+            Long documentId = request.getDocumentId();
+            if (documentId != null) {
+                accessControlService.requireOwnedDocument(documentId, currentUserId);
+            }
+            Conversation conversation = request.getConversationId() == null
+                    ? conversationService.createConversation(currentUserId, question)
+                    : conversationService.getOwnedConversation(request.getConversationId(), currentUserId);
+            conversationId = conversation.getId();
+
+            List<RagSource> sources = searchSources(question, documentId, topK);
+            List<RagSourceResponse> sourceResponses = sources.stream()
+                    .map(RagSource::toResponse)
+                    .toList();
+
+            ChatCompletion completion = sources.isEmpty()
+                    ? new ChatCompletion(DeterministicChatModelClient.NO_SOURCES_ANSWER,
+                            chatModelClient.providerName(),
+                            chatModelClient.modelName())
+                    : complete(question, sourceResponses, sources);
+
+            ChatMessage userMessage = conversationService.saveMessage(
+                    conversation.getId(),
+                    currentUserId,
+                    ChatRole.USER,
+                    question,
+                    List.of()
+            );
+            ChatMessage assistantMessage = conversationService.saveMessage(
+                    conversation.getId(),
+                    currentUserId,
+                    ChatRole.ASSISTANT,
+                    completion.getAnswer(),
+                    sourceResponses
+            );
+
+            AskResponse response = new AskResponse(
+                    conversation.getId(),
+                    userMessage.getId(),
+                    assistantMessage.getId(),
+                    completion.getAnswer(),
+                    sourceResponses,
+                    completion.getModel(),
+                    completion.getProvider(),
+                    topK
+            );
+            auditLogService.recordForUser(currentUserId, AuditAction.RAG_ASK_SUCCESS,
+                    AuditResourceType.RAG, conversation.getId(), true, "RAG ask completed");
+            return response;
+        } catch (RuntimeException ex) {
+            if (currentUserId != null) {
+                auditLogService.recordForUser(currentUserId, AuditAction.RAG_ASK_FAILURE,
+                        AuditResourceType.RAG, conversationId, false, "RAG ask failed");
+            }
+            throw ex;
         }
-        Conversation conversation = request.getConversationId() == null
-                ? conversationService.createConversation(currentUserId, question)
-                : conversationService.getOwnedConversation(request.getConversationId(), currentUserId);
-
-        List<RagSource> sources = searchSources(question, documentId, topK);
-        List<RagSourceResponse> sourceResponses = sources.stream()
-                .map(RagSource::toResponse)
-                .toList();
-
-        ChatCompletion completion = sources.isEmpty()
-                ? new ChatCompletion(DeterministicChatModelClient.NO_SOURCES_ANSWER,
-                        chatModelClient.providerName(),
-                        chatModelClient.modelName())
-                : complete(question, sourceResponses, sources);
-
-        ChatMessage userMessage = conversationService.saveMessage(
-                conversation.getId(),
-                currentUserId,
-                ChatRole.USER,
-                question,
-                List.of()
-        );
-        ChatMessage assistantMessage = conversationService.saveMessage(
-                conversation.getId(),
-                currentUserId,
-                ChatRole.ASSISTANT,
-                completion.getAnswer(),
-                sourceResponses
-        );
-
-        return new AskResponse(
-                conversation.getId(),
-                userMessage.getId(),
-                assistantMessage.getId(),
-                completion.getAnswer(),
-                sourceResponses,
-                completion.getModel(),
-                completion.getProvider(),
-                topK
-        );
     }
 
     private ChatCompletion complete(String question, List<RagSourceResponse> sourceResponses, List<RagSource> sources) {

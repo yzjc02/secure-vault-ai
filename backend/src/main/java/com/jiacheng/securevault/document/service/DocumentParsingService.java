@@ -1,5 +1,8 @@
 package com.jiacheng.securevault.document.service;
 
+import com.jiacheng.securevault.audit.enums.AuditAction;
+import com.jiacheng.securevault.audit.enums.AuditResourceType;
+import com.jiacheng.securevault.audit.service.AuditLogService;
 import com.jiacheng.securevault.document.dto.DocumentResponse;
 import com.jiacheng.securevault.document.dto.DocumentTextResponse;
 import com.jiacheng.securevault.document.entity.Document;
@@ -27,19 +30,22 @@ public class DocumentParsingService {
     private final FileStorageService fileStorageService;
     private final DocumentTextParser documentTextParser;
     private final DocumentChunkService documentChunkService;
+    private final AuditLogService auditLogService;
 
     public DocumentParsingService(DocumentRepository documentRepository,
                                   CurrentUserService currentUserService,
                                   AccessControlService accessControlService,
                                   FileStorageService fileStorageService,
                                   DocumentTextParser documentTextParser,
-                                  DocumentChunkService documentChunkService) {
+                                  DocumentChunkService documentChunkService,
+                                  AuditLogService auditLogService) {
         this.documentRepository = documentRepository;
         this.currentUserService = currentUserService;
         this.accessControlService = accessControlService;
         this.fileStorageService = fileStorageService;
         this.documentTextParser = documentTextParser;
         this.documentChunkService = documentChunkService;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional
@@ -73,13 +79,16 @@ public class DocumentParsingService {
             document.setStatus(Document.STATUS_PARSED);
             document.setErrorMessage(null);
             Document savedDocument = documentRepository.save(document);
-            return documentChunkService.chunkForUser(savedDocument.getId(), currentUserId);
+            DocumentResponse response = documentChunkService.chunkForUser(savedDocument.getId(), currentUserId);
+            auditLogService.recordForUser(currentUserId, AuditAction.DOCUMENT_PARSE_SUCCESS,
+                    AuditResourceType.DOCUMENT, documentId, true, "Document parsed");
+            return response;
         } catch (DocumentParseException ex) {
-            return markFailed(document, ex.getMessage());
+            return markFailed(document, currentUserId, ex.getMessage());
         } catch (BusinessException ex) {
-            return markFailed(document, ex.getMessage());
+            return markFailed(document, currentUserId, ex.getMessage());
         } catch (RuntimeException ex) {
-            return markFailed(document, "Document text parse failed");
+            return markFailed(document, currentUserId, "Document text parse failed");
         }
     }
 
@@ -95,13 +104,15 @@ public class DocumentParsingService {
         return DocumentTextResponse.from(document);
     }
 
-    private DocumentResponse markFailed(Document document, String message) {
+    private DocumentResponse markFailed(Document document, Long currentUserId, String message) {
         document.setStatus(Document.STATUS_FAILED);
         document.setExtractedText(null);
         document.setTextLength(0);
         document.setParsedAt(LocalDateTime.now());
         documentChunkService.clearChunksForDocument(document);
         document.setErrorMessage(safeErrorMessage(message));
+        auditLogService.recordForUser(currentUserId, AuditAction.DOCUMENT_PARSE_FAILURE,
+                AuditResourceType.DOCUMENT, document.getId(), false, "Document parse failed");
         return DocumentResponse.from(documentRepository.save(document), true);
     }
 

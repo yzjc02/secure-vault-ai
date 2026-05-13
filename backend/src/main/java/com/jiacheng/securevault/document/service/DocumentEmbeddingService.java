@@ -1,5 +1,8 @@
 package com.jiacheng.securevault.document.service;
 
+import com.jiacheng.securevault.audit.enums.AuditAction;
+import com.jiacheng.securevault.audit.enums.AuditResourceType;
+import com.jiacheng.securevault.audit.service.AuditLogService;
 import com.jiacheng.securevault.document.dto.DocumentResponse;
 import com.jiacheng.securevault.document.dto.EmbeddingStatusResponse;
 import com.jiacheng.securevault.document.dto.SemanticSearchRequest;
@@ -16,6 +19,7 @@ import com.jiacheng.securevault.document.repository.DocumentRepository;
 import com.jiacheng.securevault.exception.BusinessException;
 import com.jiacheng.securevault.security.AccessControlService;
 import com.jiacheng.securevault.security.CurrentUserService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -37,6 +41,7 @@ public class DocumentEmbeddingService {
     private final EmbeddingClient embeddingClient;
     private final ChunkEmbeddingStore chunkEmbeddingStore;
     private final EmbeddingProperties embeddingProperties;
+    private final AuditLogService auditLogService;
 
     public DocumentEmbeddingService(DocumentRepository documentRepository,
                                     DocumentChunkRepository documentChunkRepository,
@@ -45,6 +50,19 @@ public class DocumentEmbeddingService {
                                     EmbeddingClient embeddingClient,
                                     ChunkEmbeddingStore chunkEmbeddingStore,
                                     EmbeddingProperties embeddingProperties) {
+        this(documentRepository, documentChunkRepository, currentUserService, accessControlService,
+                embeddingClient, chunkEmbeddingStore, embeddingProperties, null);
+    }
+
+    @Autowired
+    public DocumentEmbeddingService(DocumentRepository documentRepository,
+                                    DocumentChunkRepository documentChunkRepository,
+                                    CurrentUserService currentUserService,
+                                    AccessControlService accessControlService,
+                                    EmbeddingClient embeddingClient,
+                                    ChunkEmbeddingStore chunkEmbeddingStore,
+                                    EmbeddingProperties embeddingProperties,
+                                    AuditLogService auditLogService) {
         this.documentRepository = documentRepository;
         this.documentChunkRepository = documentChunkRepository;
         this.currentUserService = currentUserService;
@@ -52,6 +70,7 @@ public class DocumentEmbeddingService {
         this.embeddingClient = embeddingClient;
         this.chunkEmbeddingStore = chunkEmbeddingStore;
         this.embeddingProperties = embeddingProperties;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional(noRollbackFor = BusinessException.class)
@@ -60,6 +79,7 @@ public class DocumentEmbeddingService {
         Document document = getOwnedDocument(documentId, currentUserId);
         List<DocumentChunk> chunks = documentChunkRepository.findAllByUserIdAndDocumentIdOrderByChunkIndexAsc(currentUserId, documentId);
         if (chunks.isEmpty()) {
+            recordEmbeddingAudit(currentUserId, AuditAction.DOCUMENT_EMBED_FAILURE, documentId, false, "Document embed failed");
             throw new BusinessException(400, DOCUMENT_HAS_NO_CHUNKS);
         }
 
@@ -80,15 +100,20 @@ public class DocumentEmbeddingService {
             document.setEmbeddingModel(embeddingClient.model());
             document.setEmbeddingDimension(embeddingClient.dimension());
             document.setErrorMessage(null);
-            return DocumentResponse.from(documentRepository.save(document), true);
+            DocumentResponse response = DocumentResponse.from(documentRepository.save(document), true);
+            recordEmbeddingAudit(currentUserId, AuditAction.DOCUMENT_EMBED_SUCCESS, documentId, true, "Document embedded");
+            return response;
         } catch (BusinessException ex) {
             markEmbeddingFailed(document, ex.getMessage());
+            recordEmbeddingAudit(currentUserId, AuditAction.DOCUMENT_EMBED_FAILURE, documentId, false, "Document embed failed");
             throw ex;
         } catch (EmbeddingException ex) {
             markEmbeddingFailed(document, ex.getMessage());
+            recordEmbeddingAudit(currentUserId, AuditAction.DOCUMENT_EMBED_FAILURE, documentId, false, "Document embed failed");
             throw new BusinessException(400, safeErrorMessage(ex.getMessage()));
         } catch (RuntimeException ex) {
             markEmbeddingFailed(document, EMBEDDING_FAILED);
+            recordEmbeddingAudit(currentUserId, AuditAction.DOCUMENT_EMBED_FAILURE, documentId, false, "Document embed failed");
             throw new BusinessException(400, EMBEDDING_FAILED);
         }
     }
@@ -125,6 +150,12 @@ public class DocumentEmbeddingService {
 
     private Document getOwnedDocument(Long documentId, Long currentUserId) {
         return accessControlService.requireOwnedDocument(documentId, currentUserId);
+    }
+
+    private void recordEmbeddingAudit(Long currentUserId, AuditAction action, Long documentId, boolean success, String message) {
+        if (auditLogService != null) {
+            auditLogService.recordForUser(currentUserId, action, AuditResourceType.EMBEDDING, documentId, success, message);
+        }
     }
 
     private void markEmbeddingFailed(Document document, String message) {

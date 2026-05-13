@@ -1,7 +1,11 @@
 package com.jiacheng.securevault.security.encryption;
 
+import com.jiacheng.securevault.audit.enums.AuditAction;
+import com.jiacheng.securevault.audit.enums.AuditResourceType;
+import com.jiacheng.securevault.audit.service.AuditLogService;
 import com.jiacheng.securevault.exception.BusinessException;
 import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -37,13 +41,22 @@ public class FileEncryptionService {
 
     private final FileEncryptionProperties properties;
     private final Environment environment;
+    private final AuditLogService auditLogService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     private SecretKeySpec keySpec;
 
     public FileEncryptionService(FileEncryptionProperties properties, Environment environment) {
+        this(properties, environment, null);
+    }
+
+    @Autowired
+    public FileEncryptionService(FileEncryptionProperties properties,
+                                 Environment environment,
+                                 AuditLogService auditLogService) {
         this.properties = properties;
         this.environment = environment;
+        this.auditLogService = auditLogService;
     }
 
     @PostConstruct
@@ -87,6 +100,7 @@ public class FileEncryptionService {
             return storedBytes.clone();
         }
         if (!properties.isEnabled()) {
+            recordDecryptFailure();
             throw new BusinessException(500, "File decryption failed");
         }
         try {
@@ -95,6 +109,7 @@ public class FileEncryptionService {
             buffer.get(magic);
             int ivLength = Byte.toUnsignedInt(buffer.get());
             if (ivLength < 8 || ivLength > 32 || buffer.remaining() <= ivLength) {
+                recordDecryptFailure();
                 throw new BusinessException(500, "File decryption failed");
             }
             byte[] iv = new byte[ivLength];
@@ -106,10 +121,12 @@ public class FileEncryptionService {
             cipher.init(Cipher.DECRYPT_MODE, keySpec, new GCMParameterSpec(TAG_LENGTH_BITS, iv));
             return cipher.doFinal(ciphertext);
         } catch (AEADBadTagException ex) {
+            recordDecryptFailure();
             throw new BusinessException(500, "File decryption failed");
         } catch (BusinessException ex) {
             throw ex;
         } catch (GeneralSecurityException | RuntimeException ex) {
+            recordDecryptFailure();
             throw new BusinessException(500, "File decryption failed");
         }
     }
@@ -118,6 +135,13 @@ public class FileEncryptionService {
         return storedBytes != null
                 && storedBytes.length > MAGIC.length + 1
                 && Arrays.equals(MAGIC, Arrays.copyOf(storedBytes, MAGIC.length));
+    }
+
+    private void recordDecryptFailure() {
+        if (auditLogService != null) {
+            auditLogService.recordForCurrentUser(AuditAction.FILE_DECRYPT_FAILURE,
+                    AuditResourceType.FILE, null, false, "File decrypt failed");
+        }
     }
 
     private byte[] resolveKey() {

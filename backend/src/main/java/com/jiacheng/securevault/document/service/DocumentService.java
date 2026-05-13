@@ -1,5 +1,8 @@
 package com.jiacheng.securevault.document.service;
 
+import com.jiacheng.securevault.audit.enums.AuditAction;
+import com.jiacheng.securevault.audit.enums.AuditResourceType;
+import com.jiacheng.securevault.audit.service.AuditLogService;
 import com.jiacheng.securevault.document.dto.DocumentCreateRequest;
 import com.jiacheng.securevault.document.dto.DocumentResponse;
 import com.jiacheng.securevault.document.dto.DocumentUpdateRequest;
@@ -28,19 +31,22 @@ public class DocumentService {
     private final FileStorageService fileStorageService;
     private final DocumentParsingService documentParsingService;
     private final DocumentChunkRepository documentChunkRepository;
+    private final AuditLogService auditLogService;
 
     public DocumentService(DocumentRepository documentRepository,
                            CurrentUserService currentUserService,
                            AccessControlService accessControlService,
                            FileStorageService fileStorageService,
                            DocumentParsingService documentParsingService,
-                           DocumentChunkRepository documentChunkRepository) {
+                           DocumentChunkRepository documentChunkRepository,
+                           AuditLogService auditLogService) {
         this.documentRepository = documentRepository;
         this.currentUserService = currentUserService;
         this.accessControlService = accessControlService;
         this.fileStorageService = fileStorageService;
         this.documentParsingService = documentParsingService;
         this.documentChunkRepository = documentChunkRepository;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional
@@ -84,6 +90,8 @@ public class DocumentService {
 
         try {
             Document savedDocument = documentRepository.save(document);
+            auditLogService.recordForUser(currentUserId, AuditAction.DOCUMENT_UPLOAD_SUCCESS,
+                    AuditResourceType.DOCUMENT, savedDocument.getId(), true, "Document uploaded");
             return documentParsingService.parseForUser(savedDocument.getId(), currentUserId);
         } catch (RuntimeException ex) {
             fileStorageService.delete(storedFile.storedFilename());
@@ -117,10 +125,18 @@ public class DocumentService {
     @Transactional
     public void delete(Long id) {
         Long currentUserId = currentUserService.getCurrentUserId();
-        Document document = accessControlService.requireOwnedDocument(id, currentUserId);
-        fileStorageService.delete(document.getStoredFilename());
-        documentChunkRepository.deleteByUserIdAndDocumentId(currentUserId, document.getId());
-        documentRepository.delete(document);
+        try {
+            Document document = accessControlService.requireOwnedDocument(id, currentUserId);
+            fileStorageService.delete(document.getStoredFilename());
+            documentChunkRepository.deleteByUserIdAndDocumentId(currentUserId, document.getId());
+            documentRepository.delete(document);
+            auditLogService.recordForUser(currentUserId, AuditAction.DOCUMENT_DELETE_SUCCESS,
+                    AuditResourceType.DOCUMENT, id, true, "Document deleted");
+        } catch (RuntimeException ex) {
+            auditLogService.recordForUser(currentUserId, AuditAction.DOCUMENT_DELETE_FAILURE,
+                    AuditResourceType.DOCUMENT, id, false, "Document delete failed");
+            throw ex;
+        }
     }
 
     private Document getOwnedDocument(Long id, Long currentUserId) {

@@ -2,6 +2,58 @@
 
 Privacy-first personal knowledge vault powered by Spring Boot + RAG + Ollama.
 
+## Backend Module 9: 审计日志与安全可观测性
+
+模块九新增 `audit_logs` 审计日志能力，用于记录认证、文档、embedding、RAG、跨用户访问失败和文件解密失败等关键安全事件。审计写入使用独立事务并做异常吞吐：审计库写入失败只会输出应用 `warn` 日志，不会让登录、上传、删除、RAG 等主业务失败。
+
+### 新增接口
+
+- `GET /api/me/audit-logs`：分页查询当前登录用户自己的审计日志，支持 `page`、`size`、`action`、`resourceType`、`success` 过滤，按 `createdAt DESC, id DESC` 排序。
+- `GET /api/me/audit-logs/{id}`：查询当前登录用户自己的单条审计日志。不存在或不属于当前用户时统一返回 `404`。
+
+所有接口仍使用现有 `ApiResponse`，成功 `code=0`。
+
+### 记录的审计事件
+
+- 认证：`REGISTER_SUCCESS`、`LOGIN_SUCCESS`、`LOGIN_FAILURE`
+- 文档：`DOCUMENT_UPLOAD_SUCCESS`、`DOCUMENT_PARSE_SUCCESS`、`DOCUMENT_PARSE_FAILURE`、`DOCUMENT_DELETE_SUCCESS`、`DOCUMENT_DELETE_FAILURE`
+- Embedding：`DOCUMENT_EMBED_SUCCESS`、`DOCUMENT_EMBED_FAILURE`
+- RAG：`RAG_ASK_SUCCESS`、`RAG_ASK_FAILURE`
+- 安全事件：`RESOURCE_ACCESS_DENIED`、`FILE_DECRYPT_FAILURE`
+- 审计读取：`AUDIT_LOG_READ`
+
+### 安全边界
+
+审计日志只保存安全摘要，不保存密码、JWT、Bearer token、文件加密密钥、完整 prompt、完整 chunk、answer 原文、embedding 数组、`filePath`、`storedFilename`、本地路径、数据库连接串或完整异常堆栈。审计接口 DTO 不返回 `userId`，普通用户只能读取自己的审计记录；跨用户读取审计日志或业务资源仍返回 `404`。
+
+### Verification
+
+Maven 测试：
+
+```powershell
+cd C:\Users\yzjc1\secure-vault-ai\backend
+.\mvnw.cmd test
+```
+
+Docker 冒烟测试：
+
+```powershell
+cd C:\Users\yzjc1\secure-vault-ai
+powershell -ExecutionPolicy Bypass -File .\scripts\module9-smoke.ps1
+```
+
+成功输出以如下文本结束：
+
+```text
+MODULE 9 SMOKE TEST PASSED
+```
+
+### 简历亮点
+
+- 设计并落地用户隔离的安全审计日志模块，覆盖认证、文档生命周期、RAG、权限失败和解密失败等关键安全事件。
+- 实现审计日志脱敏器，统一过滤 token、密钥、prompt、embedding、文件路径和数据库连接串，避免可观测性链路泄露敏感数据。
+- 通过独立事务和失败吞吐保证审计可观测性不影响主业务可用性，并补充单元、集成和 Docker 冒烟测试。
+
 ## Backend Module 8: Privacy and Security Hardening
 
 Module 8 hardens the existing document upload, parsing, chunking, embedding, RAG, and conversation flows without changing the Java 17 + Spring Boot 4 + Spring Data JPA baseline.
