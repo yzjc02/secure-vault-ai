@@ -71,7 +71,15 @@ public class FallbackChunkEmbeddingStore implements ChunkEmbeddingStore {
                 chunk.getChunkIndex(),
                 score,
                 chunk.getContent(),
-                chunk.getEmbeddedAt()
+                chunk.getEmbeddedAt(),
+                chunkCreatedAt(chunk, document)
         );
+    }
+
+    private LocalDateTime chunkCreatedAt(DocumentChunk chunk, Document document) {
+        if (chunk.getCreatedAt() != null) {
+            return chunk.getCreatedAt();
+        }
+        return document == null ? null : document.getCreatedAt();
     }
 }

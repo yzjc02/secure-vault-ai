@@ -2,6 +2,7 @@ package com.jiacheng.securevault.document.controller;
 
 import com.jiacheng.securevault.common.ApiResponse;
 import com.jiacheng.securevault.document.dto.DocumentCreateRequest;
+import com.jiacheng.securevault.document.dto.DocumentChunkDetailResponse;
 import com.jiacheng.securevault.document.dto.DocumentChunkResponse;
 import com.jiacheng.securevault.document.dto.DocumentResponse;
 import com.jiacheng.securevault.document.dto.EmbeddingStatusResponse;
@@ -86,6 +87,12 @@ public class DocumentController {
     @GetMapping("/{id}/chunks")
     public ApiResponse<List<DocumentChunkResponse>> getChunks(@PathVariable Long id) {
         return ApiResponse.success(documentChunkService.listChunks(id));
+    }
+
+    @GetMapping("/{documentId}/chunks/{chunkIndex}")
+    public ApiResponse<DocumentChunkDetailResponse> getChunkDetail(@PathVariable Long documentId,
+                                                                   @PathVariable Integer chunkIndex) {
+        return ApiResponse.success(documentChunkService.getChunkDetail(documentId, chunkIndex));
     }
 
     @PostMapping("/{id}/embed")

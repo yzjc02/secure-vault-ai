@@ -30,7 +30,7 @@ public class RagProperties {
 
     @Min(value = 20, message = "rag sourcePreviewLength must be at least 20")
     @Max(value = 2000, message = "rag sourcePreviewLength must be at most 2000")
-    private int sourcePreviewLength = 300;
+    private int sourcePreviewLength = 220;
 
     @AssertTrue(message = "rag defaultTopK must be less than or equal to maxTopK")
     public boolean isTopKRangeValid() {

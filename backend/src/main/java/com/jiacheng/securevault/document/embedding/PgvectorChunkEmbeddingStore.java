@@ -68,7 +68,9 @@ public class PgvectorChunkEmbeddingStore implements ChunkEmbeddingStore {
                        GREATEST(0, LEAST(1, 1 - (c.embedding <=> ?::vector))) AS score,
                        c.content,
                        c.embedding_model,
-                       c.embedded_at
+                       c.embedded_at,
+                       c.created_at AS chunk_created_at,
+                       d.created_at AS document_created_at
                 FROM document_chunks c
                 JOIN documents d ON d.id = c.document_id AND d.user_id = c.user_id
                 WHERE c.user_id = ? AND c.embedding IS NOT NULL
@@ -93,7 +95,11 @@ public class PgvectorChunkEmbeddingStore implements ChunkEmbeddingStore {
                 rs.getInt("chunk_index"),
                 rs.getDouble("score"),
                 resolveChunkContent(userId, chunkId, rs.getString("content")),
-                toLocalDateTime(rs.getTimestamp("embedded_at"))
+                toLocalDateTime(rs.getTimestamp("embedded_at")),
+                firstPresent(
+                        toLocalDateTime(rs.getTimestamp("chunk_created_at")),
+                        toLocalDateTime(rs.getTimestamp("document_created_at"))
+                )
         );
     }
 
@@ -106,5 +112,9 @@ public class PgvectorChunkEmbeddingStore implements ChunkEmbeddingStore {
 
     private LocalDateTime toLocalDateTime(Timestamp timestamp) {
         return timestamp == null ? null : timestamp.toLocalDateTime();
+    }
+
+    private LocalDateTime firstPresent(LocalDateTime primary, LocalDateTime fallback) {
+        return primary == null ? fallback : primary;
     }
 }

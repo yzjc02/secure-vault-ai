@@ -16,6 +16,7 @@ public class RagSource {
     private final String content;
     private final String contentPreview;
     private final LocalDateTime embeddedAt;
+    private final LocalDateTime createdAt;
 
     public RagSource(String sourceId,
                      Long chunkId,
@@ -27,6 +28,21 @@ public class RagSource {
                      String content,
                      String contentPreview,
                      LocalDateTime embeddedAt) {
+        this(sourceId, chunkId, documentId, documentTitle, originalFilename, chunkIndex, score,
+                content, contentPreview, embeddedAt, embeddedAt);
+    }
+
+    public RagSource(String sourceId,
+                     Long chunkId,
+                     Long documentId,
+                     String documentTitle,
+                     String originalFilename,
+                     Integer chunkIndex,
+                     Double score,
+                     String content,
+                     String contentPreview,
+                     LocalDateTime embeddedAt,
+                     LocalDateTime createdAt) {
         this.sourceId = sourceId;
         this.chunkId = chunkId;
         this.documentId = documentId;
@@ -37,6 +53,7 @@ public class RagSource {
         this.content = content;
         this.contentPreview = contentPreview;
         this.embeddedAt = embeddedAt;
+        this.createdAt = createdAt;
     }
 
     public static RagSource from(SimilarChunkResponse chunk, int index, int previewLength) {
@@ -51,22 +68,24 @@ public class RagSource {
                 chunk.getScore(),
                 content,
                 preview(content, previewLength),
-                chunk.getEmbeddedAt()
+                chunk.getEmbeddedAt(),
+                chunk.getCreatedAt()
         );
     }
 
     private static String preview(String value, int maxCodePoints) {
         if (value == null || value.isBlank()) {
-            return "[No preview available]";
+            return "";
         }
         String sanitized = sanitizePreview(value);
         if (sanitized.isBlank()) {
-            return "[No preview available]";
+            return "";
         }
-        if (sanitized.codePointCount(0, sanitized.length()) <= maxCodePoints) {
+        int safeMaxCodePoints = maxCodePoints <= 0 ? 220 : Math.min(maxCodePoints, 260);
+        if (sanitized.codePointCount(0, sanitized.length()) <= safeMaxCodePoints) {
             return sanitized;
         }
-        int endIndex = sanitized.offsetByCodePoints(0, maxCodePoints);
+        int endIndex = sanitized.offsetByCodePoints(0, safeMaxCodePoints);
         return sanitized.substring(0, endIndex) + "...";
     }
 
@@ -87,7 +106,9 @@ public class RagSource {
                 chunkIndex,
                 score,
                 contentPreview,
-                embeddedAt
+                contentPreview,
+                embeddedAt,
+                createdAt
         );
     }
 
@@ -101,4 +122,5 @@ public class RagSource {
     public String getContent() { return content; }
     public String getContentPreview() { return contentPreview; }
     public LocalDateTime getEmbeddedAt() { return embeddedAt; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
 }

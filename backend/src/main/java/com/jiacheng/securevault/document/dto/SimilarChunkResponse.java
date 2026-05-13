@@ -13,6 +13,7 @@ public class SimilarChunkResponse {
     private String content;
     private String contentPreview;
     private LocalDateTime embeddedAt;
+    private LocalDateTime createdAt;
 
     public SimilarChunkResponse() {
     }
@@ -25,6 +26,18 @@ public class SimilarChunkResponse {
                                 Double score,
                                 String content,
                                 LocalDateTime embeddedAt) {
+        this(chunkId, documentId, documentTitle, originalFilename, chunkIndex, score, content, embeddedAt, embeddedAt);
+    }
+
+    public SimilarChunkResponse(Long chunkId,
+                                Long documentId,
+                                String documentTitle,
+                                String originalFilename,
+                                Integer chunkIndex,
+                                Double score,
+                                String content,
+                                LocalDateTime embeddedAt,
+                                LocalDateTime createdAt) {
         this.chunkId = chunkId;
         this.documentId = documentId;
         this.documentTitle = documentTitle;
@@ -34,6 +47,7 @@ public class SimilarChunkResponse {
         this.content = content;
         this.contentPreview = preview(content);
         this.embeddedAt = embeddedAt;
+        this.createdAt = createdAt;
     }
 
     private static Double safeScore(Double score) {
@@ -72,4 +86,6 @@ public class SimilarChunkResponse {
     public void setContentPreview(String contentPreview) { this.contentPreview = contentPreview; }
     public LocalDateTime getEmbeddedAt() { return embeddedAt; }
     public void setEmbeddedAt(LocalDateTime embeddedAt) { this.embeddedAt = embeddedAt; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

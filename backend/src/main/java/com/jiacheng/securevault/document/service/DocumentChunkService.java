@@ -1,5 +1,9 @@
 package com.jiacheng.securevault.document.service;
 
+import com.jiacheng.securevault.audit.enums.AuditAction;
+import com.jiacheng.securevault.audit.enums.AuditResourceType;
+import com.jiacheng.securevault.audit.service.AuditLogService;
+import com.jiacheng.securevault.document.dto.DocumentChunkDetailResponse;
 import com.jiacheng.securevault.document.dto.DocumentChunkResponse;
 import com.jiacheng.securevault.document.dto.DocumentResponse;
 import com.jiacheng.securevault.document.entity.Document;
@@ -20,6 +24,7 @@ import java.util.List;
 public class DocumentChunkService {
 
     private static final String DOCUMENT_NOT_FOUND = "文档不存在";
+    private static final String CHUNK_NOT_FOUND = "Chunk not found";
     private static final String DOCUMENT_NOT_PARSED = "文档尚未解析，无法分块";
     private static final String DOCUMENT_PARSING = "文档正在解析，暂不能分块";
     private static final String DOCUMENT_CHUNKING_FAILED = "文档分块失败";
@@ -29,17 +34,20 @@ public class DocumentChunkService {
     private final CurrentUserService currentUserService;
     private final AccessControlService accessControlService;
     private final TextChunkingService textChunkingService;
+    private final AuditLogService auditLogService;
 
     public DocumentChunkService(DocumentRepository documentRepository,
                                 DocumentChunkRepository documentChunkRepository,
                                 CurrentUserService currentUserService,
                                 AccessControlService accessControlService,
-                                TextChunkingService textChunkingService) {
+                                TextChunkingService textChunkingService,
+                                AuditLogService auditLogService) {
         this.documentRepository = documentRepository;
         this.documentChunkRepository = documentChunkRepository;
         this.currentUserService = currentUserService;
         this.accessControlService = accessControlService;
         this.textChunkingService = textChunkingService;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional(noRollbackFor = BusinessException.class)
@@ -93,6 +101,20 @@ public class DocumentChunkService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public DocumentChunkDetailResponse getChunkDetail(Long documentId, Integer chunkIndex) {
+        Long currentUserId = currentUserService.getCurrentUserId();
+        Document document = getOwnedDocument(documentId, currentUserId);
+        DocumentChunk chunk = documentChunkRepository
+                .findByUserIdAndDocumentIdAndChunkIndex(currentUserId, documentId, chunkIndex)
+                .orElseThrow(() -> {
+                    recordChunkViewAudit(currentUserId, documentId, chunkIndex, false);
+                    return new BusinessException(404, CHUNK_NOT_FOUND);
+                });
+        recordChunkViewAudit(currentUserId, documentId, chunkIndex, true);
+        return DocumentChunkDetailResponse.from(document, chunk);
+    }
+
     @Transactional
     public void clearChunksForDocument(Document document) {
         clearChunks(document);
@@ -103,6 +125,15 @@ public class DocumentChunkService {
 
     private Document getOwnedDocument(Long documentId, Long currentUserId) {
         return accessControlService.requireOwnedDocument(documentId, currentUserId);
+    }
+
+    private void recordChunkViewAudit(Long currentUserId, Long documentId, Integer chunkIndex, boolean success) {
+        auditLogService.recordForUser(currentUserId,
+                AuditAction.DOCUMENT_CHUNK_VIEW,
+                AuditResourceType.DOCUMENT_CHUNK,
+                documentId,
+                success,
+                "Document chunk view documentId=" + documentId + " chunkIndex=" + chunkIndex);
     }
 
     private void validateChunkable(Document document) {

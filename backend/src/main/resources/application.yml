@@ -62,7 +62,7 @@ app:
     max-top-k: ${RAG_MAX_TOP_K:10}
     max-question-length: ${RAG_MAX_QUESTION_LENGTH:2000}
     max-context-chars: ${RAG_MAX_CONTEXT_CHARS:8000}
-    source-preview-length: ${RAG_SOURCE_PREVIEW_LENGTH:300}
+    source-preview-length: ${RAG_SOURCE_PREVIEW_LENGTH:220}
   chat:
     provider: ${CHAT_PROVIDER:deterministic}
     ollama:

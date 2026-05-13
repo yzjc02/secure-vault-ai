@@ -96,8 +96,17 @@ flowchart LR
 - 解析分块流程：上传成功后自动触发解析，`FileStorageService` 透明解密文件流，Apache Tika 抽取文本，`TextChunkingService` 清洗并分块，写入 `document_chunks`。
 - embedding 入库流程：用户调用 `/api/documents/{id}/embed`，系统对当前用户该文档的 chunks 生成 embedding，在 PostgreSQL + pgvector 中保存并更新文档 embedding 状态。
 - RAG 问答流程：用户调用 `/api/chat/ask`，系统按当前用户范围检索相似 chunks，构造 RAG prompt，调用 deterministic 或 Ollama chat provider，返回 `answer` 和 `sources`，并写入 conversation 记录。
+- Module 10: RAG Evidence Trail：RAG answers now return verifiable source metadata. Each source includes document id, document title, original filename, chunk index, similarity score, snippet, and created time. Users can inspect full source chunk content through `GET /api/documents/{documentId}/chunks/{chunkIndex}`. Sensitive fields such as embeddings, file paths, userId, and prompts are never exposed. Cross-user chunk access is blocked.
 - 审计日志流程：认证、上传、解析、embedding、RAG、删除、跨用户访问失败、解密失败等事件写入 `audit_logs`；审计写入失败不会中断主业务。
 - 跨用户访问拦截流程：服务层只按当前 JWT 解析出的 `userId` 查询资源，跨用户访问通过 `AccessControlService` 收口并返回 `404`，避免暴露资源是否存在。
+
+## Module 10: RAG Evidence Trail
+
+- RAG answers now return verifiable source metadata.
+- Each source includes document id, document title, original filename, chunk index, similarity score, snippet, and created time.
+- Users can inspect full source chunk content through `GET /api/documents/{documentId}/chunks/{chunkIndex}`.
+- Sensitive fields such as embeddings, file paths, userId, and prompts are never exposed.
+- Cross-user chunk access is blocked.
 
 ## 快速启动
 
@@ -183,6 +192,19 @@ powershell -ExecutionPolicy Bypass -File .\scripts\module10-verify.ps1
 MODULE 10 DOCUMENTATION VERIFY PASSED
 ```
 
+模块十 Evidence Trail 冒烟测试：
+
+```powershell
+cd C:\path\to\secure-vault-ai
+powershell -ExecutionPolicy Bypass -File .\scripts\module10-smoke.ps1
+```
+
+成功时脚本会输出：
+
+```text
+MODULE 10 SMOKE TEST PASSED
+```
+
 ## 文档导航
 
 - [docs/architecture.md](docs/architecture.md)：系统架构、数据流、安全链路和设计取舍。
@@ -192,6 +214,7 @@ MODULE 10 DOCUMENTATION VERIFY PASSED
 - [docs/module10-release-checklist.md](docs/module10-release-checklist.md)：模块十封版检查清单。
 - [docs/privacy-design.md](docs/privacy-design.md)：隐私设计、安全边界和响应脱敏说明。
 - [docs/audit-design.md](docs/audit-design.md)：审计日志设计、脱敏策略和验收方式。
+- [docs/evidence-trail-design.md](docs/evidence-trail-design.md)：RAG Evidence Trail、chunk detail API、用户隔离和测试策略。
 - [docs/troubleshooting.md](docs/troubleshooting.md)：常见运行和演示故障处理。
 
 ## 安全注意事项

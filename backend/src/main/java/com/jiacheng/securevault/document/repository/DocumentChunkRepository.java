@@ -19,6 +19,8 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Lo
 
     Optional<DocumentChunk> findByIdAndUserId(Long id, Long userId);
 
+    Optional<DocumentChunk> findByUserIdAndDocumentIdAndChunkIndex(Long userId, Long documentId, Integer chunkIndex);
+
     long countByUserIdAndDocumentId(Long userId, Long documentId);
 
     long countByUserIdAndDocumentIdAndEmbeddingJsonIsNotNull(Long userId, Long documentId);

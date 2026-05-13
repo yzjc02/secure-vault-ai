@@ -316,6 +316,26 @@ class DocumentControllerTest {
                 .andExpect(jsonPath("$.data[0].userId").doesNotExist())
                 .andExpect(jsonPath("$.data[0].filePath").doesNotExist())
                 .andExpect(jsonPath("$.data[0].extractedText").doesNotExist());
+
+        MvcResult chunkDetail = mockMvc.perform(get("/api/documents/{id}/chunks/{chunkIndex}", docId, 0)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.documentId").value(docId))
+                .andExpect(jsonPath("$.data.documentTitle").value("notes.txt"))
+                .andExpect(jsonPath("$.data.originalFilename").value("notes.txt"))
+                .andExpect(jsonPath("$.data.chunkIndex").value(0))
+                .andExpect(jsonPath("$.data.content").value("hello"))
+                .andExpect(jsonPath("$.data.textLength").value(5))
+                .andExpect(jsonPath("$.data.createdAt", notNullValue()))
+                .andExpect(jsonPath("$.data.embedding").doesNotExist())
+                .andExpect(jsonPath("$.data.embeddingJson").doesNotExist())
+                .andExpect(jsonPath("$.data.embedding_json").doesNotExist())
+                .andExpect(jsonPath("$.data.filePath").doesNotExist())
+                .andExpect(jsonPath("$.data.userId").doesNotExist())
+                .andExpect(jsonPath("$.data.fullPrompt").doesNotExist())
+                .andReturn();
+        assertNoSensitiveFields(chunkDetail.getResponse().getContentAsString());
     }
 
     @Test
@@ -553,6 +573,11 @@ class DocumentControllerTest {
                         .header("Authorization", bearer(tokenB)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(404));
+
+        mockMvc.perform(get("/api/documents/{id}/chunks/{chunkIndex}", docA, 0)
+                        .header("Authorization", bearer(tokenB)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(404));
     }
 
     @Test
@@ -572,6 +597,22 @@ class DocumentControllerTest {
         mockMvc.perform(get("/api/documents/{id}/chunks", 1L))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value(401));
+
+        mockMvc.perform(get("/api/documents/{id}/chunks/{chunkIndex}", 1L, 0))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(401));
+    }
+
+    @Test
+    void shouldReturn404WhenChunkDetailIndexDoesNotExist() throws Exception {
+        String token = registerAndLogin("alice");
+        long docId = uploadDocument(token, "missing-chunk.txt", "only one chunk");
+
+        mockMvc.perform(get("/api/documents/{id}/chunks/{chunkIndex}", docId, 99)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(404))
+                .andExpect(jsonPath("$.message").value("Chunk not found"));
     }
 
     @Test
@@ -1030,6 +1071,13 @@ class DocumentControllerTest {
                 .getContentAsString());
 
         assertNoSensitiveFields(mockMvc.perform(get("/api/documents/{id}/chunks", docId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+
+        assertNoSensitiveFields(mockMvc.perform(get("/api/documents/{id}/chunks/{chunkIndex}", docId, 0)
                         .header("Authorization", bearer(token)))
                 .andExpect(status().isOk())
                 .andReturn()
