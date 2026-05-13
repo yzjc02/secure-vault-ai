@@ -9,49 +9,56 @@
 <body>
 <div class="app-shell">
     <aside class="sidebar" data-i18n-aria-label="knowledgeSidebarAria" aria-label="知识库侧边栏">
-        <div class="brand">
-            <div class="brand-mark">SV</div>
-            <div>
-                <h1 data-i18n="appTitle">Secure Vault AI</h1>
-                <p data-i18n="appSubtitle">隐私优先的个人知识库</p>
-            </div>
-        </div>
-
-        <div class="language-switcher">
-            <label for="languageSelect" data-i18n="languageLabel">语言</label>
-            <select id="languageSelect" data-i18n-aria-label="languageSelectorLabel" aria-label="选择界面语言">
-                <option value="zh-CN">中文</option>
-                <option value="en-US">English</option>
-            </select>
-        </div>
-
-        <div class="session-card">
-            <span class="eyebrow" data-i18n="status">状态</span>
-            <strong id="sessionLabel">请先登录</strong>
-        </div>
-
-        <div class="sidebar-actions">
-            <button id="newChatButton" class="button button-ghost" type="button" data-i18n="newChat">新会话</button>
-            <button id="refreshConversationsButton" class="button button-ghost" type="button" data-i18n="refreshConversations">刷新会话</button>
-        </div>
-
-        <section class="sidebar-section">
-            <div class="section-header">
-                <h2 data-i18n="conversations">会话</h2>
-            </div>
-            <div id="conversationList" class="conversation-list" aria-live="polite"></div>
-        </section>
-
-        <section class="sidebar-section knowledge-section">
-            <div class="section-header">
-                <h2 data-i18n="knowledgeFiles">知识库文件</h2>
-                <div class="section-actions">
-                    <button id="openUploadButton" class="icon-button" type="button" data-i18n-title="uploadFile" title="上传文件" data-i18n-aria-label="uploadFile" aria-label="上传文件">+</button>
-                    <button id="refreshDocumentsButton" class="icon-button" type="button" data-i18n-title="refresh" title="刷新" data-i18n-aria-label="refresh" aria-label="刷新">↻</button>
+        <div class="sidebar-header">
+            <div class="brand">
+                <div class="brand-mark">SV</div>
+                <div>
+                    <h1 data-i18n="appTitle">Secure Vault AI</h1>
+                    <p data-i18n="appSubtitle">隐私优先的个人知识库</p>
                 </div>
             </div>
-            <div id="documentList" class="document-list" aria-live="polite"></div>
-        </section>
+
+            <div class="session-card">
+                <span class="eyebrow" data-i18n="status">状态</span>
+                <strong id="sessionLabel">请先登录</strong>
+            </div>
+
+            <div class="language-switcher">
+                <label for="languageSelect" data-i18n="languageLabel">语言</label>
+                <select id="languageSelect" data-i18n-aria-label="languageSelectorLabel" aria-label="选择界面语言">
+                    <option value="zh-CN">中文</option>
+                    <option value="en-US">English</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="sidebar-body">
+            <section class="sidebar-section conversations-section">
+                <div class="section-header">
+                    <h2 data-i18n="conversations">会话</h2>
+                    <div class="section-actions">
+                        <button id="newChatButton" class="mini-button" type="button" data-i18n="newChat">新会话</button>
+                        <button id="refreshConversationsButton" class="mini-button" type="button" data-i18n="refresh">刷新</button>
+                    </div>
+                </div>
+                <div class="section-scroll conversation-scroll">
+                    <div id="conversationList" class="conversation-list" aria-live="polite"></div>
+                </div>
+            </section>
+
+            <section class="sidebar-section documents-section knowledge-section">
+                <div class="section-header">
+                    <h2 data-i18n="knowledgeFiles">知识库文件</h2>
+                    <div class="section-actions">
+                        <button id="openUploadButton" class="icon-button" type="button" data-i18n-title="uploadFile" title="上传文件" data-i18n-aria-label="uploadFile" aria-label="上传文件">+</button>
+                        <button id="refreshDocumentsButton" class="icon-button" type="button" data-i18n-title="refresh" title="刷新" data-i18n-aria-label="refresh" aria-label="刷新">↻</button>
+                    </div>
+                </div>
+                <div class="section-scroll document-scroll">
+                    <div id="documentList" class="document-list" aria-live="polite"></div>
+                </div>
+            </section>
+        </div>
 
         <div class="sidebar-footer">
             <button id="auditButton" class="button button-ghost" type="button" data-i18n="auditLogs">审计日志</button>

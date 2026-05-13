@@ -77,6 +77,10 @@ foreach ($term in @("Secure Vault AI", "data-i18n", "data-i18n-placeholder", "la
     Assert-Contains -Content $indexHtml -Term $term -Path "index.html"
 }
 
+foreach ($term in @("sidebar-header", "sidebar-body", "sidebar-footer", "sidebar-section", "section-scroll", "conversation-scroll", "document-scroll")) {
+    Assert-True (($indexHtml.Contains($term)) -or ($stylesCss.Contains($term))) "index.html or styles.css does not contain required layout term: $term"
+}
+
 Write-Step "Check app.js terms"
 
 foreach ($term in @("localStorage", "Authorization", "Bearer", "FormData", "fetch", "email", "apiFetch", "renderSources", "logout", "ask", "contentPreview", "No readable preview was returned", "source.documentId", "I18N", "zh-CN", "en-US", "secureVaultLanguage", "applyLanguage", "setLanguage", "data-i18n", "data-i18n-placeholder")) {
@@ -88,6 +92,10 @@ Assert-True (-not $appJs.Contains("source.chunkId")) "app.js must not use chunkI
 Write-Step "Check styles.css terms"
 
 foreach ($term in @("sidebar", "chat", "composer", "message", "source", "badge", "language")) {
+    Assert-Contains -Content $stylesCss -Term $term -Path "styles.css"
+}
+
+foreach ($term in @("min-height: 0", "overflow-y: auto", "flex-direction: column", "100vh")) {
     Assert-Contains -Content $stylesCss -Term $term -Path "styles.css"
 }
 
@@ -136,6 +144,7 @@ $escapedUnfinishedWords = $unfinishedWords | ForEach-Object { [regex]::Escape($_
 $unfinishedPattern = '(?i)\b(' + ($escapedUnfinishedWords -join "|") + ')\b'
 Assert-True (-not ($combined -match $unfinishedPattern)) "Module 11 files contain unfinished placeholder words"
 Assert-True (-not ($combined -match 'Authorization:\s*Bearer\s+eyJ[A-Za-z0-9_\-]+')) "Module 11 files contain a JWT-looking Authorization header"
+Assert-True (-not ($combined -match '\bBearer\s+eyJ[A-Za-z0-9_\-]+')) "Module 11 files contain a JWT-looking bearer token sample"
 Assert-True (-not ($combined -match '(?i)C:\\Users\\')) "Module 11 files contain a real-looking Windows user directory"
 
 $jwtSecretMatches = [regex]::Matches($combined, '(?im)^\s*JWT_SECRET\s*=\s*([^\s`"'']+)')
