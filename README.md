@@ -2,6 +2,38 @@
 
 Secure Vault AI 是一个隐私优先的本地个人知识库系统，支持文件上传、AES-GCM 加密存储、Apache Tika 文本解析、chunking、embedding、pgvector 相似检索、RAG 问答、会话记录、用户隔离和 audit logs 审计日志。
 
+## Quick Start for Personal Use
+
+第一次启动会自动从 `.env.example` 生成本地 `.env`，并生成本机使用的 `JWT_SECRET`、`FILE_ENCRYPTION_KEY` 和本地数据库密码。`.env` 不要提交到 Git。
+
+一键启动：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start-vault.ps1
+```
+
+浏览器访问：
+
+```text
+http://localhost:8080
+```
+
+停止服务：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\stop-vault.ps1
+```
+
+查看日志：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\logs-vault.ps1
+```
+
+脚本路径：`scripts/start-vault.ps1`、`scripts/stop-vault.ps1`、`scripts/logs-vault.ps1`。
+
+浏览器页面可以注册、登录、上传文档、执行 embedding、提问、查看 answer + sources、查看 audit logs 和删除文档。Web UI supports Chinese / English language switching. 详细使用说明见 [docs/user-guide.md](docs/user-guide.md)。
+
 ## 项目价值
 
 - 隐私优先：文件加密落盘，向量检索、RAG 问答和审计链路尽量在本地环境完成。

@@ -50,20 +50,31 @@ public class RagSource {
                 chunk.getChunkIndex(),
                 chunk.getScore(),
                 content,
-                truncate(content, previewLength),
+                preview(content, previewLength),
                 chunk.getEmbeddedAt()
         );
     }
 
-    private static String truncate(String value, int maxCodePoints) {
+    private static String preview(String value, int maxCodePoints) {
         if (value == null || value.isBlank()) {
-            return null;
+            return "[No preview available]";
         }
-        if (value.codePointCount(0, value.length()) <= maxCodePoints) {
-            return value;
+        String sanitized = sanitizePreview(value);
+        if (sanitized.isBlank()) {
+            return "[No preview available]";
         }
-        int endIndex = value.offsetByCodePoints(0, maxCodePoints);
-        return value.substring(0, endIndex);
+        if (sanitized.codePointCount(0, sanitized.length()) <= maxCodePoints) {
+            return sanitized;
+        }
+        int endIndex = sanitized.offsetByCodePoints(0, maxCodePoints);
+        return sanitized.substring(0, endIndex) + "...";
+    }
+
+    private static String sanitizePreview(String value) {
+        return value.replaceAll("\\s+", " ")
+                .replaceAll("(?i)[A-Z]:\\\\\\S+", "[local path removed]")
+                .replaceAll("(?i)/\\S*/uploads/\\S*", "[local path removed]")
+                .trim();
     }
 
     public RagSourceResponse toResponse() {

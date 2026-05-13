@@ -19,7 +19,7 @@ public class ChunkEmbeddingStoreConfiguration {
                                                    DocumentChunkRepository documentChunkRepository,
                                                    DocumentRepository documentRepository) throws SQLException {
         if (isPostgreSql(dataSource)) {
-            return new PgvectorChunkEmbeddingStore(jdbcTemplate);
+            return new PgvectorChunkEmbeddingStore(jdbcTemplate, documentChunkRepository);
         }
         return new FallbackChunkEmbeddingStore(documentChunkRepository, documentRepository);
     }

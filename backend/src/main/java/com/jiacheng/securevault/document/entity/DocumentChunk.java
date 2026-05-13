@@ -6,7 +6,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
-import jakarta.persistence.Lob;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
@@ -34,7 +33,6 @@ public class DocumentChunk {
     @Column(name = "chunk_index", nullable = false)
     private Integer chunkIndex;
 
-    @Lob
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
@@ -53,7 +51,6 @@ public class DocumentChunk {
     @Column(name = "end_offset", nullable = false)
     private Integer endOffset;
 
-    @Lob
     @Column(name = "embedding_json", columnDefinition = "TEXT")
     private String embeddingJson;
 

@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Secure Vault AI</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app-shell">
+    <aside class="sidebar" data-i18n-aria-label="knowledgeSidebarAria" aria-label="知识库侧边栏">
+        <div class="brand">
+            <div class="brand-mark">SV</div>
+            <div>
+                <h1 data-i18n="appTitle">Secure Vault AI</h1>
+                <p data-i18n="appSubtitle">隐私优先的个人知识库</p>
+            </div>
+        </div>
+
+        <div class="language-switcher">
+            <label for="languageSelect" data-i18n="languageLabel">语言</label>
+            <select id="languageSelect" data-i18n-aria-label="languageSelectorLabel" aria-label="选择界面语言">
+                <option value="zh-CN">中文</option>
+                <option value="en-US">English</option>
+            </select>
+        </div>
+
+        <div class="session-card">
+            <span class="eyebrow" data-i18n="status">状态</span>
+            <strong id="sessionLabel">请先登录</strong>
+        </div>
+
+        <div class="sidebar-actions">
+            <button id="newChatButton" class="button button-ghost" type="button" data-i18n="newChat">新会话</button>
+            <button id="refreshConversationsButton" class="button button-ghost" type="button" data-i18n="refreshConversations">刷新会话</button>
+        </div>
+
+        <section class="sidebar-section">
+            <div class="section-header">
+                <h2 data-i18n="conversations">会话</h2>
+            </div>
+            <div id="conversationList" class="conversation-list" aria-live="polite"></div>
+        </section>
+
+        <section class="sidebar-section knowledge-section">
+            <div class="section-header">
+                <h2 data-i18n="knowledgeFiles">知识库文件</h2>
+                <div class="section-actions">
+                    <button id="openUploadButton" class="icon-button" type="button" data-i18n-title="uploadFile" title="上传文件" data-i18n-aria-label="uploadFile" aria-label="上传文件">+</button>
+                    <button id="refreshDocumentsButton" class="icon-button" type="button" data-i18n-title="refresh" title="刷新" data-i18n-aria-label="refresh" aria-label="刷新">↻</button>
+                </div>
+            </div>
+            <div id="documentList" class="document-list" aria-live="polite"></div>
+        </section>
+
+        <div class="sidebar-footer">
+            <button id="auditButton" class="button button-ghost" type="button" data-i18n="auditLogs">审计日志</button>
+            <button id="logoutButton" class="button button-ghost danger-text" type="button" data-i18n="logout">退出登录</button>
+        </div>
+    </aside>
+
+    <main class="chat-main">
+        <header class="chat-header">
+            <div>
+                <span class="eyebrow" data-i18n="localRagWorkspace">本地 RAG 工作区</span>
+                <h2 id="chatTitle" data-i18n="knowledgeChat">知识库问答</h2>
+                <p data-i18n="chatSubtitle">基于你上传的知识库文件提问。</p>
+            </div>
+            <div class="header-status">
+                <span id="selectedDocumentLabel">全部已向量化文件</span>
+            </div>
+        </header>
+
+        <div id="statusArea" class="status-area" role="status" aria-live="polite"></div>
+
+        <section id="messageList" class="message-list" aria-live="polite">
+            <article class="message assistant-message">
+                <div class="message-meta">Secure Vault AI</div>
+                <div class="message-body" data-i18n="welcomeMessage">
+                    上传文件，点击向量化，然后开始提问。每个回答下方会显示来源。
+                </div>
+            </article>
+        </section>
+
+        <form id="askForm" class="composer">
+            <textarea id="questionInput" rows="2" data-i18n-placeholder="questionPlaceholder" placeholder="请输入你的问题……" data-i18n-aria-label="questionAria" aria-label="问题"></textarea>
+            <div class="composer-controls">
+                <label>
+                    topK
+                    <input id="topKInput" type="number" min="1" max="20" value="5" inputmode="numeric">
+                </label>
+                <button id="sendButton" class="button button-primary" type="submit" data-i18n="ask">提问</button>
+            </div>
+        </form>
+    </main>
+
+    <aside id="detailsPanel" class="details-panel" data-i18n-aria-label="detailsPanelAria" aria-label="详情面板">
+        <div class="panel-header">
+            <div>
+                <span class="eyebrow" data-i18n="details">详情</span>
+                <h2 id="detailsTitle" data-i18n="audit">审计</h2>
+            </div>
+            <button id="closeDetailsButton" class="icon-button" type="button" data-i18n-title="close" title="关闭" data-i18n-aria-label="close" aria-label="关闭">&times;</button>
+        </div>
+        <div id="detailsContent" class="details-content"></div>
+    </aside>
+</div>
+
+<div id="authOverlay" class="overlay">
+    <section class="auth-card" data-i18n-aria-label="authenticationAria" aria-label="认证">
+        <div class="auth-heading">
+            <div class="brand-mark">SV</div>
+            <div>
+                <h2 data-i18n="appTitle">Secure Vault AI</h2>
+                <p data-i18n="appSubtitle">隐私优先的个人知识库</p>
+            </div>
+        </div>
+
+        <div class="auth-grid">
+            <form id="loginForm" class="auth-form">
+                <h3 data-i18n="login">登录</h3>
+                <label>
+                    <span data-i18n="username">用户名</span>
+                    <input id="loginUsername" type="text" autocomplete="username" data-i18n-placeholder="usernamePlaceholder" placeholder="请输入用户名" required>
+                </label>
+                <label>
+                    <span data-i18n="password">密码</span>
+                    <input id="loginPassword" type="password" autocomplete="current-password" data-i18n-placeholder="passwordPlaceholder" placeholder="请输入密码" required>
+                </label>
+                <button class="button button-primary" type="submit" data-i18n="signIn">登录</button>
+            </form>
+
+            <form id="registerForm" class="auth-form">
+                <h3 data-i18n="register">注册</h3>
+                <label>
+                    <span data-i18n="username">用户名</span>
+                    <input id="registerUsername" type="text" autocomplete="username" data-i18n-placeholder="usernamePlaceholder" placeholder="请输入用户名" required>
+                </label>
+                <label>
+                    <span data-i18n="email">邮箱</span>
+                    <input id="registerEmail" type="email" autocomplete="email" data-i18n-placeholder="emailPlaceholder" placeholder="请输入邮箱" required>
+                </label>
+                <label>
+                    <span data-i18n="password">密码</span>
+                    <input id="registerPassword" type="password" autocomplete="new-password" data-i18n-placeholder="passwordPlaceholder" placeholder="请输入密码" required>
+                </label>
+                <button class="button button-secondary" type="submit" data-i18n="createAccount">创建账号</button>
+            </form>
+        </div>
+    </section>
+</div>
+
+<div id="uploadModal" class="modal-backdrop hidden">
+    <section class="modal" data-i18n-aria-label="uploadKnowledgeFile" aria-label="上传知识库文件">
+        <div class="panel-header">
+            <div>
+                <span class="eyebrow" data-i18n="upload">上传</span>
+                <h2 data-i18n="uploadKnowledgeFile">上传知识库文件</h2>
+            </div>
+            <button id="closeUploadButton" class="icon-button" type="button" data-i18n-title="close" title="关闭" data-i18n-aria-label="close" aria-label="关闭">&times;</button>
+        </div>
+        <form id="uploadForm" class="upload-form">
+            <label>
+                <span data-i18n="selectFile">选择文件</span>
+                <input id="fileInput" type="file" accept=".txt,.pdf,.docx,.md,.markdown">
+            </label>
+            <label>
+                <span data-i18n="title">标题</span>
+                <input id="fileTitleInput" type="text" data-i18n-placeholder="optionalTitle" placeholder="可选标题">
+            </label>
+            <button class="button button-primary" type="submit" data-i18n="upload">上传</button>
+        </form>
+    </section>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

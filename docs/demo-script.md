@@ -294,7 +294,38 @@ Invoke-RestMethod `
 
 证明能力：不是只会调模型 API，而是能把 AI 能力放进可维护、安全、可测试的后端系统。
 
-## 4. 故障预案
+## 4. 浏览器 UI 演示流程
+
+这一段用于展示模块十一新增的本地 Chat 风格个人知识库界面，不替代前面的 API 演示流程。
+
+1. 在项目根目录运行一键启动脚本：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start-vault.ps1
+```
+
+2. 浏览器打开：
+
+```text
+http://localhost:8080
+```
+
+3. 在 Register 表单注册新用户，注册时必须填写 email。
+4. 在 Login 表单登录。
+5. 点击 Upload，上传一个小型 txt 文档。
+6. 在左侧 Knowledge Files 中点击该文档的 Embed。
+7. 在中间 chat 输入框提问。
+8. 展示 answer + sources，说明 sources 包含 documentId、chunkIndex、score 和 contentPreview。
+9. 向面试官说明 sources 的作用：它不是 AI 随便编的引用，而是来自 pgvector 检索到的 chunk；通过 preview 可以判断回答是否有依据。
+10. 点击 Audit Logs，展示最近 audit logs。
+11. 在文档列表中点击 Delete，删除演示文档。
+12. 演示结束后停止服务：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\stop-vault.ps1
+```
+
+## 5. 故障预案
 
 | 问题 | 处理方式 |
 | --- | --- |
@@ -312,6 +343,6 @@ Invoke-RestMethod `
 | RAG 没有 sources | 先确认文档状态为 `EMBEDDED`，再执行 `/api/chat/ask` |
 | audit logs 为空 | 先执行注册、登录、上传、embedding 或 RAG 操作，再查询 `/api/me/audit-logs?size=20` |
 
-## 5. 结束语
+## 6. 结束语
 
 这个项目的亮点不是功能堆叠，而是把每一步都做成可解释、可验证、可隔离的后端链路。面试时优先讲清楚数据怎么流动、权限怎么收口、敏感信息怎么避免泄露。

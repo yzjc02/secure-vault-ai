@@ -1,6 +1,8 @@
 package com.jiacheng.securevault.document.embedding;
 
 import com.jiacheng.securevault.document.dto.SimilarChunkResponse;
+import com.jiacheng.securevault.document.entity.DocumentChunk;
+import com.jiacheng.securevault.document.repository.DocumentChunkRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.sql.ResultSet;
@@ -13,9 +15,11 @@ import java.util.List;
 public class PgvectorChunkEmbeddingStore implements ChunkEmbeddingStore {
 
     private final JdbcTemplate jdbcTemplate;
+    private final DocumentChunkRepository documentChunkRepository;
 
-    public PgvectorChunkEmbeddingStore(JdbcTemplate jdbcTemplate) {
+    public PgvectorChunkEmbeddingStore(JdbcTemplate jdbcTemplate, DocumentChunkRepository documentChunkRepository) {
         this.jdbcTemplate = jdbcTemplate;
+        this.documentChunkRepository = documentChunkRepository;
     }
 
     @Override
@@ -76,20 +80,28 @@ public class PgvectorChunkEmbeddingStore implements ChunkEmbeddingStore {
         sql.append(" ORDER BY c.embedding <=> ?::vector LIMIT ?");
         args.add(queryVectorString);
         args.add(topK);
-        return jdbcTemplate.query(sql.toString(), this::mapRow, args.toArray());
+        return jdbcTemplate.query(sql.toString(), (rs, rowNum) -> mapRow(rs, rowNum, userId), args.toArray());
     }
 
-    private SimilarChunkResponse mapRow(ResultSet rs, int rowNum) throws SQLException {
+    private SimilarChunkResponse mapRow(ResultSet rs, int rowNum, Long userId) throws SQLException {
+        long chunkId = rs.getLong("chunk_id");
         return new SimilarChunkResponse(
-                rs.getLong("chunk_id"),
+                chunkId,
                 rs.getLong("document_id"),
                 rs.getString("document_title"),
                 rs.getString("original_filename"),
                 rs.getInt("chunk_index"),
                 rs.getDouble("score"),
-                rs.getString("content"),
+                resolveChunkContent(userId, chunkId, rs.getString("content")),
                 toLocalDateTime(rs.getTimestamp("embedded_at"))
         );
+    }
+
+    private String resolveChunkContent(Long userId, Long chunkId, String rawContent) {
+        return documentChunkRepository.findByIdAndUserId(chunkId, userId)
+                .map(DocumentChunk::getContent)
+                .filter(content -> content != null && !content.isBlank())
+                .orElse(rawContent);
     }
 
     private LocalDateTime toLocalDateTime(Timestamp timestamp) {

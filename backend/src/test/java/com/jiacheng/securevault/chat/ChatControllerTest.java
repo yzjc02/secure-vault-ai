@@ -161,6 +161,16 @@ class ChatControllerTest {
 
         String firstJson = firstAsk.getResponse().getContentAsString();
         assertNoSensitiveFields(firstJson);
+        String contentPreview = extractString(firstJson, "contentPreview");
+        assertThat(contentPreview)
+                .isNotBlank()
+                .hasSizeLessThanOrEqualTo(300)
+                .contains("module seven validates")
+                .doesNotContain("filePath")
+                .doesNotContain("storedFilename")
+                .doesNotContain("userId")
+                .doesNotContain("fullPrompt");
+        assertThat(contentPreview).doesNotMatch("^[\\d\\s.,;:|/\\\\_-]+$");
 
         long conversationId = extractLong(firstJson, "conversationId");
 
