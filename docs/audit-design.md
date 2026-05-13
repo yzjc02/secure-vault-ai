@@ -94,14 +94,14 @@ RAG 与安全事件：
 Maven 测试：
 
 ```powershell
-cd C:\Users\yzjc1\secure-vault-ai\backend
+cd C:\path\to\secure-vault-ai\backend
 .\mvnw.cmd test
 ```
 
 Docker 冒烟测试：
 
 ```powershell
-cd C:\Users\yzjc1\secure-vault-ai
+cd C:\path\to\secure-vault-ai
 powershell -ExecutionPolicy Bypass -File .\scripts\module9-smoke.ps1
 ```
 

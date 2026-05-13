@@ -1,843 +1,178 @@
-# secure-vault-ai
+# Secure Vault AI
 
-Privacy-first personal knowledge vault powered by Spring Boot + RAG + Ollama.
+Secure Vault AI 是一个隐私优先的本地个人知识库系统，支持文件上传、AES-GCM 加密存储、Apache Tika 文本解析、chunking、embedding、pgvector 相似检索、RAG 问答、会话记录、用户隔离和 audit logs 审计日志。
 
-## Backend Module 9: 审计日志与安全可观测性
+## 项目价值
 
-模块九新增 `audit_logs` 审计日志能力，用于记录认证、文档、embedding、RAG、跨用户访问失败和文件解密失败等关键安全事件。审计写入使用独立事务并做异常吞吐：审计库写入失败只会输出应用 `warn` 日志，不会让登录、上传、删除、RAG 等主业务失败。
+- 隐私优先：文件加密落盘，向量检索、RAG 问答和审计链路尽量在本地环境完成。
+- 后端工程能力：覆盖认证、文件处理、数据库、向量检索、权限收口、安全脱敏、审计记录、Docker Compose 和自动化测试。
+- AI 工程化：实现 embedding、pgvector 语义检索、RAG answer + sources 引用，不停留在普通 CRUD。
+- 安全设计：使用 JWT、BCrypt、用户级数据隔离、AES-GCM 文件加密、响应脱敏和审计日志脱敏。
+- 面试可展示：提供 Docker Compose、Maven 测试、PowerShell smoke 脚本、接口文档、演示脚本和简历答辩材料。
 
-### 新增接口
+## 功能矩阵
 
-- `GET /api/me/audit-logs`：分页查询当前登录用户自己的审计日志，支持 `page`、`size`、`action`、`resourceType`、`success` 过滤，按 `createdAt DESC, id DESC` 排序。
-- `GET /api/me/audit-logs/{id}`：查询当前登录用户自己的单条审计日志。不存在或不属于当前用户时统一返回 `404`。
+| 能力 | 状态 | 说明 |
+| --- | --- | --- |
+| Auth / JWT | Completed | 用户注册、登录、JWT 鉴权、当前用户识别 |
+| Document CRUD | Completed | 当前用户私有文档创建、列表、详情、更新、删除 |
+| Docker + PostgreSQL | Completed | Docker Compose 启动后端和 pgvector PostgreSQL |
+| File Upload | Completed | 支持 `pdf`、`docx`、`txt`、`md`、`markdown` 上传 |
+| Tika Parsing | Completed | 使用 Apache Tika 抽取文档文本 |
+| Chunking | Completed | 文本清洗、固定窗口与 overlap 分块、chunks 入库 |
+| Embedding + pgvector | Completed | deterministic / Ollama embedding，pgvector 相似检索 |
+| RAG QA | Completed | `/api/chat/ask` 返回 answer + sources |
+| Conversation Memory | Completed | conversations 与 chat_messages 保存问答上下文 |
+| File Encryption | Completed | 上传文件使用 AES-GCM 加密存储，读取时透明解密 |
+| Access Control | Completed | `AccessControlService` 集中做用户资源归属检查 |
+| Response Sanitization | Completed | 响应不暴露 `userId`、本地路径、stored filename、密钥、embedding 数组等 |
+| Delete Cleanup | Completed | 删除文档时清理本地加密文件、chunks 和 embedding 数据 |
+| Audit Logs | Completed | 记录认证、文档、embedding、RAG、访问拒绝、解密失败等安全事件 |
+| Smoke Tests | Completed | 已有模块 6 到模块 9 PowerShell smoke 脚本 |
 
-所有接口仍使用现有 `ApiResponse`，成功 `code=0`。
+## 技术栈
 
-### 记录的审计事件
+- Backend：Java 17、Spring Boot 4.0.6、Spring Web MVC、Spring Data JPA
+- Security：Spring Security、JWT、BCrypt、统一异常处理、用户级资源隔离
+- Storage：本地文件存储、AES-GCM 加密、Apache Tika 文本抽取
+- AI / RAG：文本清洗、chunking、embedding、pgvector、RAG prompt、answer + sources
+- Database：PostgreSQL、pgvector、H2 测试数据库
+- Deployment：Docker Compose、`.env` 环境变量、PowerShell 脚本
+- Testing：Maven tests、Spring Security tests、模块 smoke tests、模块十文档静态验证
+- Documentation：README、架构文档、API 指南、演示脚本、简历答辩材料、安全设计文档
 
-- 认证：`REGISTER_SUCCESS`、`LOGIN_SUCCESS`、`LOGIN_FAILURE`
-- 文档：`DOCUMENT_UPLOAD_SUCCESS`、`DOCUMENT_PARSE_SUCCESS`、`DOCUMENT_PARSE_FAILURE`、`DOCUMENT_DELETE_SUCCESS`、`DOCUMENT_DELETE_FAILURE`
-- Embedding：`DOCUMENT_EMBED_SUCCESS`、`DOCUMENT_EMBED_FAILURE`
-- RAG：`RAG_ASK_SUCCESS`、`RAG_ASK_FAILURE`
-- 安全事件：`RESOURCE_ACCESS_DENIED`、`FILE_DECRYPT_FAILURE`
-- 审计读取：`AUDIT_LOG_READ`
+## 系统架构
 
-### 安全边界
+详细架构见 [docs/architecture.md](docs/architecture.md)。GitHub Markdown 支持在 fenced code block 中使用 `mermaid` 渲染图表，本文档中的架构图按该格式编写。
 
-审计日志只保存安全摘要，不保存密码、JWT、Bearer token、文件加密密钥、完整 prompt、完整 chunk、answer 原文、embedding 数组、`filePath`、`storedFilename`、本地路径、数据库连接串或完整异常堆栈。审计接口 DTO 不返回 `userId`，普通用户只能读取自己的审计记录；跨用户读取审计日志或业务资源仍返回 `404`。
-
-### Verification
-
-Maven 测试：
-
-```powershell
-cd C:\Users\yzjc1\secure-vault-ai\backend
-.\mvnw.cmd test
+```mermaid
+flowchart LR
+    Client["PowerShell / API Client"] --> Security["Spring Security + JWT"]
+    Security --> Controllers["REST Controllers"]
+    Controllers --> Services["Auth / Document / RAG / Audit Services"]
+    Services --> Storage["Encrypted Local File Storage"]
+    Services --> DB["PostgreSQL + pgvector"]
+    Services --> Tika["Apache Tika"]
+    Services --> AI["Deterministic or Ollama Provider"]
+    Services --> Audit["audit_logs"]
 ```
 
-Docker 冒烟测试：
-
-```powershell
-cd C:\Users\yzjc1\secure-vault-ai
-powershell -ExecutionPolicy Bypass -File .\scripts\module9-smoke.ps1
-```
-
-成功输出以如下文本结束：
-
-```text
-MODULE 9 SMOKE TEST PASSED
-```
-
-### 简历亮点
-
-- 设计并落地用户隔离的安全审计日志模块，覆盖认证、文档生命周期、RAG、权限失败和解密失败等关键安全事件。
-- 实现审计日志脱敏器，统一过滤 token、密钥、prompt、embedding、文件路径和数据库连接串，避免可观测性链路泄露敏感数据。
-- 通过独立事务和失败吞吐保证审计可观测性不影响主业务可用性，并补充单元、集成和 Docker 冒烟测试。
-
-## Backend Module 8: Privacy and Security Hardening
-
-Module 8 hardens the existing document upload, parsing, chunking, embedding, RAG, and conversation flows without changing the Java 17 + Spring Boot 4 + Spring Data JPA baseline.
-
-### What Module 8 Adds
-
-- Local uploaded files are encrypted at rest with JDK AES-GCM (`AES/GCM/NoPadding`), random 12-byte IVs, and 128-bit tags.
-- File reads are transparently decrypted through `FileStorageService`, so Apache Tika parsing, chunking, embedding, semantic search, and RAG question answering continue to work.
-- Legacy plaintext files remain readable when they do not contain the `SVAIENC1` encryption header.
-- `AccessControlService` centralizes ownership checks for documents, chunks, conversations, and chat messages.
-- Cross-user access returns `404`, not `403`, to avoid revealing whether another user's resource exists.
-- API responses do not expose `filePath`, `storedFilename`, `userId`, embedding arrays, full prompts, encryption keys, local absolute paths, JDBC URLs, JWTs, or stack traces.
-- Deleting a document removes the local encrypted file and clears owned chunks and embedding data.
-
-### File Encryption Configuration
-
-```env
-FILE_ENCRYPTION_ENABLED=true
-FILE_ENCRYPTION_KEY=replace-with-base64-32-byte-key
-FILE_ENCRYPTION_DEV_KEY_FILE=.secure-vault/file-encryption.key
-```
-
-`FILE_ENCRYPTION_KEY` may be a Base64-encoded 32-byte AES key. A UTF-8 string of at least 32 characters is also accepted and is derived to a 256-bit key with SHA-256. The key is never printed to logs or returned by any API.
-
-For local non-production development, if `FILE_ENCRYPTION_KEY` is empty, the backend creates a local dev key file at `.secure-vault/file-encryption.key`. The `.secure-vault/` directory is gitignored. Production profiles (`prod` or `production`) must provide a stable `FILE_ENCRYPTION_KEY`; otherwise startup fails. Do not commit real keys to `.env.example`, `docker-compose.yml`, README, or source code.
-
-### User Isolation and Response Safety
-
-- Controllers and DTOs do not accept `userId`.
-- Services derive ownership from the current JWT/SecurityContext user.
-- Document, text, chunk, embedding/status, search, RAG ask, conversation list, and conversation message APIs all scope data by `currentUserId`.
-- RAG sources are safe snapshots: `documentId`, `documentTitle`/`originalFilename`, `chunkIndex`, `score`, and `contentPreview`.
-- Full prompts, file paths, stored filenames, user ids, encryption keys, and embedding arrays are never returned.
-
-### Delete Cleanup
-
-`DELETE /api/documents/{id}` first verifies ownership. It then deletes the local encrypted file, removes the user's `document_chunks` rows, clears embedding data stored with those chunks, and deletes the document record. Other users deleting the same id receive `404`.
-
-### Module 8 Verification
-
-```powershell
-cd C:\Users\yzjc1\secure-vault-ai\backend
-.\mvnw.cmd test
-```
-
-Optional Docker smoke flow:
-
-```powershell
-cd C:\Users\yzjc1\secure-vault-ai
-powershell -ExecutionPolicy Bypass -File .\scripts\module8-smoke.ps1
-```
-
-Successful smoke output ends with:
-
-```text
-MODULE 8 SMOKE TEST PASSED
-```
-
-## Backend Module 7: RAG Question Answering
-
-Module 7 adds authenticated RAG question answering on top of module 6 semantic chunk search. It does not add frontend UI, streaming, WebSocket, agents, OCR, or LangChain/Spring AI.
-
-### Features
-
-- `POST /api/chat/ask` searches the current user's embedded chunks, builds a bounded RAG prompt, calls the configured chat provider, and returns `answer + sources`.
-- `GET /api/conversations` lists only the current user's conversations.
-- `GET /api/conversations/{id}/messages` returns only the current user's conversation messages.
-- Conversations and chat messages are persisted in `conversations` and `chat_messages`.
-- The default chat provider is `deterministic`, so tests and smoke checks do not require Ollama.
-- `ollama` chat provider supports local `/api/chat` with `stream=false`.
-- Cross-user document, chunk, conversation, and message access returns 404.
-- Responses do not expose `userId`, `filePath`, `storedFilename`, embedding arrays, or full prompts.
-
-### Configuration
-
-```env
-RAG_DEFAULT_TOP_K=5
-RAG_MAX_TOP_K=10
-RAG_MAX_QUESTION_LENGTH=2000
-RAG_MAX_CONTEXT_CHARS=8000
-RAG_SOURCE_PREVIEW_LENGTH=300
-CHAT_PROVIDER=deterministic
-OLLAMA_BASE_URL=http://host.docker.internal:11434
-OLLAMA_CHAT_MODEL=qwen2.5:3b
-OLLAMA_CHAT_TIMEOUT_SECONDS=60
-```
-
-`CHAT_PROVIDER=deterministic` is the default and is suitable for automated tests, local smoke checks, and environments without Ollama.
-
-To use real local Ollama chat:
-
-```powershell
-ollama pull qwen2.5:3b
-```
-
-Then set:
-
-```env
-CHAT_PROVIDER=ollama
-OLLAMA_BASE_URL=http://host.docker.internal:11434
-OLLAMA_CHAT_MODEL=qwen2.5:3b
-```
-
-### API Examples
-
-Ask a question:
-
-```http
-POST /api/chat/ask
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "question": "What does module seven validate?",
-  "topK": 5,
-  "documentId": 123,
-  "conversationId": 1
-}
-```
-
-`documentId` and `conversationId` are optional. If either is present, it is checked with `currentUserId`; another user's resource returns 404.
-
-Example response:
-
-```json
-{
-  "code": 0,
-  "message": "OK",
-  "data": {
-    "conversationId": 1,
-    "userMessageId": 10,
-    "assistantMessageId": 11,
-    "answer": "根据你的知识库片段 [S1]，可以回答：What does module seven validate?",
-    "sources": [
-      {
-        "sourceId": "S1",
-        "chunkId": 100,
-        "documentId": 123,
-        "documentTitle": "module7.txt",
-        "originalFilename": "module7.txt",
-        "chunkIndex": 0,
-        "score": 0.87,
-        "contentPreview": "Secure Vault AI module seven validates RAG question answering...",
-        "embeddedAt": "2026-05-12T18:00:00"
-      }
-    ],
-    "model": "deterministic",
-    "provider": "deterministic",
-    "usedTopK": 5
-  }
-}
-```
-
-List conversations:
-
-```http
-GET /api/conversations
-Authorization: Bearer <token>
-```
-
-Get conversation messages:
-
-```http
-GET /api/conversations/1/messages
-Authorization: Bearer <token>
-```
-
-### Verification
-
-```powershell
-cd C:\Users\yzjc1\secure-vault-ai\backend
-.\mvnw.cmd test
-```
-
-Optional Docker smoke flow:
-
-```powershell
-cd C:\Users\yzjc1\secure-vault-ai
-powershell -ExecutionPolicy Bypass -File .\scripts\module7-smoke.ps1
-```
-
-## Backend Module 6: Embedding + pgvector Vector Search
-
-Module 6 adds embeddings for `document_chunks` and semantic chunk search. It keeps the existing Spring Boot 4 / Java 17 / JPA architecture and does not add chat, conversations, RAG prompts, or answer generation.
-
-### Features
-
-- `POST /api/documents/{id}/embed` generates embeddings for the current user's chunks and updates the document status to `EMBEDDED`.
-- `GET /api/documents/{id}/embedding-status` returns chunk and embedding progress without exposing vectors.
-- `POST /api/documents/search-chunks` embeds the query and searches only the current user's embedded chunks.
-- PostgreSQL uses pgvector `vector(EMBEDDING_DIMENSION)` and cosine distance (`<=>`) for production search.
-- H2 and unit tests use deterministic embeddings plus `embedding_json`, so tests do not require Ollama or PostgreSQL.
-- Cross-user access to document embedding/status returns 404, and search results never include another user's chunks.
-- API responses do not include `userId`, `filePath`, or full embedding arrays.
-
-### Configuration
-
-```env
-EMBEDDING_PROVIDER=deterministic
-EMBEDDING_MODEL=nomic-embed-text
-EMBEDDING_DIMENSION=768
-EMBEDDING_TOP_K=5
-EMBEDDING_TIMEOUT_SECONDS=30
-EMBEDDING_BATCH_SIZE=16
-OLLAMA_BASE_URL=http://host.docker.internal:11434
-OLLAMA_EMBEDDINGS_PATH=/api/embeddings
-```
-
-`deterministic` is the default provider and is suitable for local verification and automated tests. To use real Ollama embeddings, run:
-
-```powershell
-ollama pull nomic-embed-text
-```
-
-Then set:
-
-```env
-EMBEDDING_PROVIDER=ollama
-OLLAMA_BASE_URL=http://host.docker.internal:11434
-```
-
-If Ollama runs in the same Linux network as the backend, set `OLLAMA_BASE_URL` to that service URL instead. `EMBEDDING_DIMENSION` must match the model output dimension.
-
-### pgvector and Docker
-
-Docker Compose uses `pgvector/pgvector:pg16` for PostgreSQL. On application startup, PostgreSQL environments run `CREATE EXTENSION IF NOT EXISTS vector` and backfill nullable module-six columns with `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`. Existing Docker volumes are kept; do not delete data by default. If an old container image does not include pgvector, rebuild/recreate the container without removing the volume:
-
-```powershell
-docker compose up -d --build
-docker compose ps
-```
-
-### API Examples
-
-```http
-POST /api/documents/{id}/embed
-Authorization: Bearer <token>
-```
-
-```http
-GET /api/documents/{id}/embedding-status
-Authorization: Bearer <token>
-```
-
-```http
-POST /api/documents/search-chunks
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "query": "semantic search query",
-  "topK": 5,
-  "documentId": 123
-}
-```
-
-`documentId` is optional. If present, it is first checked with `documentId + currentUserId`; another user's document returns 404.
-
-### Verification
-
-```powershell
-cd backend
-.\mvnw.cmd test
-```
-
-Optional Docker smoke flow:
-
-```powershell
-.\scripts\module6-smoke.ps1 -BaseUrl "http://localhost:8080"
-```
-
-## Backend Module 5: 文本分块 Chunking
-
-模块五在文档解析能力之上新增文本分块能力，为后续 embedding 和向量检索做准备。本模块只负责 chunking，不包含 embedding、pgvector、Ollama、LangChain4j、RAG 问答或聊天接口。
-
-### 功能说明
-
-- 从 `Document.extractedText` 读取已解析文本。
-- 对文本做轻量清洗：统一换行、移除 NUL、行尾 trim、压缩连续空行，并保留段落和 Markdown 基本结构。
-- 使用固定字符窗口 + overlap 切分文本，默认 `chunkSize=1000`、`overlapSize=150`、`minChunkSize=100`。
-- 优先在段落、换行、中英文句末标点、弱边界附近切分，找不到合适边界时才硬切。
-- 将 chunk 写入 `document_chunks` 表，每条 chunk 绑定 `userId` 和 `documentId`。
-- 上传文件自动解析成功后会自动分块。
-- 手动重新解析成功后会清理旧 chunks 并重新分块。
-- 手动重新分块会先删除旧 chunks，避免重复和过期 chunk 残留。
-- 删除文档时同步删除当前用户该文档的 chunks。
-- `DocumentResponse` 新增 `chunkCount`、`chunkedAt`，列表和详情仍不返回完整 `extractedText`，API 仍不暴露 `filePath`。
-
-### 新增配置
-
-`.env.example` 和 `application.yml` 支持以下配置：
-
-```env
-CHUNK_SIZE=1000
-CHUNK_OVERLAP_SIZE=150
-CHUNK_MIN_SIZE=100
-```
-
-配置校验规则：
-
-- `CHUNK_SIZE` 必须大于 0。
-- `CHUNK_OVERLAP_SIZE` 必须大于等于 0，且小于 `CHUNK_SIZE`。
-- `CHUNK_MIN_SIZE` 必须大于 0，且小于等于 `CHUNK_SIZE`。
-- 配置非法时应用启动失败，并返回清晰的校验错误。
-
-### 新增接口
-
-手动重新分块：
-
-```http
-POST /api/documents/{id}/chunk
-Authorization: Bearer <token>
-```
-
-成功后返回 `DocumentResponse`，`status=CHUNKED`，`chunkCount > 0`，`chunkedAt` 不为空。
-
-查询文档 chunks：
-
-```http
-GET /api/documents/{id}/chunks
-Authorization: Bearer <token>
-```
-
-返回按 `chunkIndex` 升序排列的 chunk 列表。响应包含 `content`、`contentLength`、`tokenCount`、`contentHash`、`startOffset`、`endOffset`、`createdAt`，不包含 `userId`、`filePath` 或完整 `extractedText` 字段。
-
-### 状态流转
-
-- 上传成功：`UPLOADED`
-- 解析中：`PARSING`
-- 解析完成：`PARSED`
-- 分块中：`CHUNKING`
-- 分块完成：`CHUNKED`
-- 解析或分块失败：`FAILED`
-
-模块五接入后，上传一个可解析 TXT / Markdown / PDF / DOCX 文档时，如果解析和分块都成功，最终状态是 `CHUNKED`。`GET /api/documents/{id}/text` 仍可返回完整 `extractedText`。
-
-### 安全说明
-
-- chunks 持久化保存 `userId`，后续检索必须按 `userId` 过滤。
-- 查询 chunks 和重新分块都使用 `documentId + currentUserId` 校验归属。
-- 用户 B 访问用户 A 的文档 chunks 或重新分块用户 A 的文档时，统一返回 `404 文档不存在`。
-- Controller 不接收前端传入的 `userId`，用户归属只来自当前 JWT / SecurityContext。
-- 删除 chunks 使用 `userId + documentId` 条件，不直接按裸 `documentId` 删除其他用户数据。
-- 文档列表和详情仍不返回完整 `extractedText`，API 不暴露服务器本地 `filePath`。
-
-## Backend Module 3: 真实文件上传与本地存储
-
-模块三在现有文档 CRUD 基础上新增真实文件上传。登录用户可以上传 `pdf`、`docx`、`txt`、`md`、`markdown` 文件，后端会生成安全的 UUID 文件名，把文件保存到本地上传目录，并把文件元数据记录到 `documents` 表。
-
-### 功能说明
-
-- 上传接口：**POST** `/api/documents/upload`
-- 认证方式：`Authorization: Bearer <token>`
-- 请求类型：`multipart/form-data`
-- 表单字段：
-  - `file`：必填，上传文件。
-  - `title`：可选，自定义标题；为空时默认使用原始文件名。
-- 默认最大文件大小：`20MB`，可通过 `MAX_FILE_SIZE=20971520` 覆盖。
-- 默认本地上传目录：`./data/uploads`，Docker 环境默认 `FILE_STORAGE_DIR=/app/data/uploads`。
-- 删除文档时，如果该文档有关联上传文件，会同步删除本地文件。
-- API 响应会返回 `originalFilename`、`fileType`、`fileSize`、`contentType` 等安全元数据，不会暴露 `storedFilename` 或服务器真实 `filePath`。
-
-### Windows PowerShell 上传示例
-
-```powershell
-$token = "你的 JWT"
-$form = @{
-  file = Get-Item ".\test-files\demo.txt"
-  title = "我的测试文档"
-}
-
-Invoke-RestMethod `
-  -Uri "http://localhost:8080/api/documents/upload" `
-  -Method Post `
-  -Headers @{ Authorization = "Bearer $token" } `
-  -Form $form
-```
-
-### curl 上传示例
-
-```powershell
-curl.exe -X POST "http://localhost:8080/api/documents/upload" ^
-  -H "Authorization: Bearer <token>" ^
-  -F "file=@demo.txt" ^
-  -F "title=我的测试文档"
-```
-
-### Docker Compose 持久化
-
-Docker Compose 下 backend 服务会挂载 `uploads` volume 到 `/app/data/uploads`，容器重建后上传文件不会丢失。`postgres-data` volume 仍用于 PostgreSQL 数据持久化。
-
-### 提交注意事项
-
-- 不要提交 `.env`。
-- 不要提交 `uploads/`、`data/uploads/`、`backend/data/uploads/` 等运行时上传目录。
-- `.env.example` 只保留示例配置，可以提交。
-
-## Backend Module 4: 文档解析与文本抽取
-
-模块四在文件上传基础上新增文档文本抽取。登录用户上传 `pdf`、`docx`、`txt`、`md`、`markdown` 后，后端会同步解析文件、保存纯文本、记录文本长度和解析时间，并维护 `PARSING` / `PARSED` / `FAILED` 状态。解析失败只更新文档状态和 `errorMessage`，不会删除数据库记录或本地文件。
-
-### 功能说明
-
-- 支持 PDF、DOCX、TXT、Markdown 文本抽取。
-- 上传成功后自动解析，`POST /api/documents/upload` 返回解析后的文档状态。
-- 支持手动重新解析：**POST** `/api/documents/{id}/parse`。
-- 支持查看完整解析文本：**GET** `/api/documents/{id}/text`。
-- 列表和详情接口不会返回完整 `extractedText`，详情最多返回 `extractedTextPreview`。
-- API 响应不会返回服务器真实 `filePath`。
-
-### 手动重新解析
-
-```powershell
-curl.exe -X POST "http://localhost:8080/api/documents/1/parse" `
-  -H "Authorization: Bearer <token>"
-```
-
-解析成功响应示例：
-
-```json
-{
-  "code": 0,
-  "message": "OK",
-  "data": {
-    "id": 1,
-    "title": "demo.txt",
-    "status": "PARSED",
-    "originalFilename": "demo.txt",
-    "fileType": "txt",
-    "textLength": 42,
-    "parsedAt": "2026-05-10T16:00:00",
-    "errorMessage": null
-  }
-}
-```
-
-解析失败响应示例：
-
-```json
-{
-  "code": 0,
-  "message": "OK",
-  "data": {
-    "id": 1,
-    "title": "demo.pdf",
-    "status": "FAILED",
-    "originalFilename": "demo.pdf",
-    "fileType": "pdf",
-    "textLength": 0,
-    "parsedAt": "2026-05-10T16:01:00",
-    "errorMessage": "未抽取到有效文本"
-  }
-}
-```
-
-### 获取完整解析文本
-
-```powershell
-curl.exe -X GET "http://localhost:8080/api/documents/1/text" `
-  -H "Authorization: Bearer <token>"
-```
-
-成功响应示例：
-
-```json
-{
-  "code": 0,
-  "message": "OK",
-  "data": {
-    "id": 1,
-    "title": "demo.txt",
-    "status": "PARSED",
-    "originalFilename": "demo.txt",
-    "fileType": "txt",
-    "textLength": 42,
-    "parsedAt": "2026-05-10T16:00:00",
-    "extractedText": "这里是完整解析文本。"
-  }
-}
-```
-
-### 范围说明
-
-- 本模块不做 chunking。
-- 本模块不做 embedding。
-- 本模块不做 RAG。
-- 下一模块才进入文本分块。
+## 核心业务流程
+
+- 注册登录流程：用户调用 `/api/auth/register` 提交 `username`、`email`、`password`，密码经 BCrypt 存储；登录调用 `/api/auth/login` 获取 JWT，后续请求使用 `Authorization: Bearer <token>`。
+- 上传加密落盘流程：用户调用 `/api/documents/upload` 上传文件，服务端校验文件类型和大小，生成安全文件名，使用 AES-GCM 加密写入本地存储，并在 `documents` 表保存安全元数据。
+- 解析分块流程：上传成功后自动触发解析，`FileStorageService` 透明解密文件流，Apache Tika 抽取文本，`TextChunkingService` 清洗并分块，写入 `document_chunks`。
+- embedding 入库流程：用户调用 `/api/documents/{id}/embed`，系统对当前用户该文档的 chunks 生成 embedding，在 PostgreSQL + pgvector 中保存并更新文档 embedding 状态。
+- RAG 问答流程：用户调用 `/api/chat/ask`，系统按当前用户范围检索相似 chunks，构造 RAG prompt，调用 deterministic 或 Ollama chat provider，返回 `answer` 和 `sources`，并写入 conversation 记录。
+- 审计日志流程：认证、上传、解析、embedding、RAG、删除、跨用户访问失败、解密失败等事件写入 `audit_logs`；审计写入失败不会中断主业务。
+- 跨用户访问拦截流程：服务层只按当前 JWT 解析出的 `userId` 查询资源，跨用户访问通过 `AccessControlService` 收口并返回 `404`，避免暴露资源是否存在。
 
 ## 快速启动
 
-### Windows
+以下命令面向 Windows PowerShell。不要把 `.env`、`.secure-vault/`、真实密钥或真实 token 提交到仓库。
 
-1. 安装 Docker Desktop。
-2. 克隆项目并进入项目根目录。
-3. 执行初始化脚本：
+```powershell
+git clone <your-repo-url>
+cd C:\path\to\secure-vault-ai
+```
+
+创建本地 `.env`。可以先复制 `.env.example`，再替换本机私有配置：
+
+```env
+APP_PORT=8080
+SPRING_PROFILES_ACTIVE=prod
+POSTGRES_DB=securevault
+POSTGRES_USER=securevault_user
+POSTGRES_PASSWORD=replace-with-local-password
+JWT_SECRET=replace-with-at-least-64-bytes-secret
+JWT_EXPIRATION=86400000
+FILE_STORAGE_DIR=/app/data/uploads
+FILE_ENCRYPTION_ENABLED=true
+FILE_ENCRYPTION_KEY=replace-with-base64-32-byte-key
+MAX_FILE_SIZE=20971520
+EMBEDDING_PROVIDER=deterministic
+CHAT_PROVIDER=deterministic
+```
+
+也可以运行初始化脚本生成本地配置：
 
 ```powershell
 .\scripts\setup.ps1
 ```
 
-4. 启动服务：
+启动 Docker Compose：
 
 ```powershell
-docker compose up -d
-```
-
-如果修改过 Dockerfile、依赖或 Compose 配置，建议重建：
-
-```powershell
-docker compose down
 docker compose up -d --build
 docker compose ps
 docker compose logs backend --tail=200
 ```
 
-5. 访问后端接口，例如：
+运行 Maven 测试：
 
 ```powershell
-curl.exe -i http://localhost:8080/api/documents
+cd C:\path\to\secure-vault-ai\backend
+.\mvnw.cmd test
 ```
 
-未携带 JWT 时，受保护接口应返回 `401`。
-
-### Linux / macOS
-
-```bash
-chmod +x scripts/setup.sh
-./scripts/setup.sh
-docker compose up -d
-```
-
-重建和查看日志：
-
-```bash
-docker compose down
-docker compose up -d --build
-docker compose ps
-docker compose logs backend --tail=200
-```
-
-### 本机配置与密钥说明
-
-- `.env` 是本机私有配置，已经在 `.gitignore` 中忽略，不要提交。
-- `.env.example` 只包含示例值，不包含真实密钥。
-- `JWT_SECRET` 会由 setup 脚本自动生成，生成后不会打印到控制台。
-- 生产环境应该使用服务器环境变量、CI/CD Secret 或 Docker secrets 注入密钥。
-- 如果启动失败提示 `JWT_SECRET is required and must be at least 64 bytes...`，说明没有运行 setup 脚本，或生产环境没有配置 secret。
-
-## Windows PowerShell 接口测试建议
-
-复杂 JSON 或包含中文的请求，推荐使用 PowerShell 7，并先设置控制台和管道输出为 UTF-8：
+运行 smoke 脚本：
 
 ```powershell
-chcp 65001
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$OutputEncoding = [System.Text.Encoding]::UTF8
+cd C:\path\to\secure-vault-ai
+powershell -ExecutionPolicy Bypass -File .\scripts\module9-smoke.ps1
 ```
 
-复杂 JSON 或包含中文的请求，推荐使用 `Invoke-WebRequest` / `Invoke-RestMethod`，请求体用 `ConvertTo-Json -Compress` 生成后转为 UTF-8 bytes，并显式指定 `application/json; charset=utf-8`。
+## 测试说明
+
+Maven 自动化测试：
 
 ```powershell
-$registerBody = @{
-  username = "alice"
-  email = "alice@example.com"
-  password = "Password123"
-} | ConvertTo-Json -Compress
-
-Invoke-WebRequest `
-  -Method POST `
-  -Uri "http://localhost:8080/api/auth/register" `
-  -ContentType "application/json; charset=utf-8" `
-  -Body $registerBody
-
-$loginBody = @{
-  username = "alice"
-  password = "Password123"
-} | ConvertTo-Json -Compress
-
-$loginResponse = Invoke-RestMethod `
-  -Method POST `
-  -Uri "http://localhost:8080/api/auth/login" `
-  -ContentType "application/json; charset=utf-8" `
-  -Body $loginBody
-
-$token = $loginResponse.data.token
-
-$documentBody = @{
-  title = "Spring Security 学习笔记"
-  description = "记录模块一 JWT 鉴权流程"
-} | ConvertTo-Json -Compress
-
-$documentBytes = [System.Text.Encoding]::UTF8.GetBytes($documentBody)
-
-Invoke-RestMethod `
-  -Method POST `
-  -Uri "http://localhost:8080/api/documents" `
-  -Headers @{ Authorization = "Bearer $token" } `
-  -ContentType "application/json; charset=utf-8" `
-  -Body $documentBytes
+cd C:\path\to\secure-vault-ai\backend
+.\mvnw.cmd test
 ```
 
-不推荐在复杂 JSON 场景下使用 `curl.exe -d $body`，PowerShell 可能会影响参数传递或多行 JSON，导致后端收到的请求体不是预期 JSON。
-
-如果看到 `å`、`è`、`ç` 等字符，通常表示 UTF-8 字节被错误按 Latin-1 或 Windows-1252 解码。后端已经强制请求/响应 UTF-8，并有自动化测试覆盖中文创建、列表读取和错误响应。PostgreSQL 新库默认应为 UTF8，可用以下命令检查：
+模块九 Docker 冒烟测试：
 
 ```powershell
-docker compose exec postgres psql -U securevault_user -d securevault -c "SHOW SERVER_ENCODING;"
+cd C:\path\to\secure-vault-ai
+powershell -ExecutionPolicy Bypass -File .\scripts\module9-smoke.ps1
 ```
 
-## Backend Module 1: 用户注册 / 登录 / JWT 鉴权
-
-后端目录：`backend`
-
-> 注意：当前仅完成第一模块（用户注册、登录、JWT 鉴权、当前用户识别），未完成文档上传、RAG、Ollama、向量检索等后续模块。
-
-### 0) 配置 JWT 环境变量（必须）
-
-JWT 密钥必须通过环境变量提供，**不要把真实 JWT_SECRET 提交到 GitHub**。
-
-Windows PowerShell:
+模块十文档静态验证：
 
 ```powershell
-$env:JWT_SECRET="replace-with-at-least-64-character-random-secret"
-$env:JWT_EXPIRATION="86400000"
+cd C:\path\to\secure-vault-ai
+powershell -ExecutionPolicy Bypass -File .\scripts\module10-verify.ps1
 ```
 
-macOS / Linux:
-
-```bash
-export JWT_SECRET="replace-with-at-least-64-character-random-secret"
-export JWT_EXPIRATION="86400000"
-```
-
-### 1) 启动项目
-
-```bash
-cd backend
-./mvnw spring-boot:run
-```
-
-Windows:
-
-```powershell
-cd backend
-.\mvnw.cmd spring-boot:run
-```
-
-### 2) 注册用户
-
-- **POST** `http://localhost:8080/api/auth/register`
-- Body (JSON):
-
-```json
-{
-  "username": "alice",
-  "email": "alice@example.com",
-  "password": "Password123"
-}
-```
-
-### 3) 登录并获取 JWT
-
-- **POST** `http://localhost:8080/api/auth/login`
-- Body (JSON):
-
-```json
-{
-  "username": "alice",
-  "password": "Password123"
-}
-```
-
-成功后会返回：
-
-```json
-{
-  "code": 0,
-  "message": "OK",
-  "data": {
-    "token": "<JWT_TOKEN>",
-    "tokenType": "Bearer"
-  }
-}
-```
-
-### 4) 使用 JWT 访问受保护接口
-
-- **GET** `http://localhost:8080/api/test/me`
-- Header:
+成功时模块十脚本会输出：
 
 ```text
-Authorization: Bearer <JWT_TOKEN>
+MODULE 10 DOCUMENTATION VERIFY PASSED
 ```
 
-结果预期：
-- 不带 Token：`401 Unauthorized`
-- Token 非 `Bearer <token>` 格式：`401 Unauthorized`
-- Token 无效或过期：`401 Unauthorized`
-- 带有效 Token：返回当前登录用户信息
+## 文档导航
 
-示例成功响应：
+- [docs/architecture.md](docs/architecture.md)：系统架构、数据流、安全链路和设计取舍。
+- [docs/api-guide.md](docs/api-guide.md)：真实 Controller / DTO 对应的 API 使用文档。
+- [docs/demo-script.md](docs/demo-script.md)：10 到 15 分钟面试或答辩演示脚本。
+- [docs/resume-points.md](docs/resume-points.md)：中英文简历描述、技术亮点和面试 Q&A。
+- [docs/module10-release-checklist.md](docs/module10-release-checklist.md)：模块十封版检查清单。
+- [docs/privacy-design.md](docs/privacy-design.md)：隐私设计、安全边界和响应脱敏说明。
+- [docs/audit-design.md](docs/audit-design.md)：审计日志设计、脱敏策略和验收方式。
+- [docs/troubleshooting.md](docs/troubleshooting.md)：常见运行和演示故障处理。
 
-```json
-{
-  "code": 0,
-  "message": "OK",
-  "data": {
-    "userId": 1,
-    "username": "alice",
-    "authorities": [
-      { "authority": "ROLE_USER" }
-    ]
-  }
-}
-```
+## 安全注意事项
 
-### 5) Postman 测试建议
+- 不提交 `.env`。
+- 不提交 `.secure-vault/`。
+- 不提交 `file-encryption.key` 的真实内容。
+- 不在文档、Issue、提交信息或聊天记录里粘贴真实 JWT。
+- 不在文档里粘贴真实本地文件路径。
+- 不在文档里粘贴真实数据库密码。
+- `.env.example` 只能保留占位符或可公开的默认值。
+- 生产或演示环境使用稳定的 `JWT_SECRET` 和 `FILE_ENCRYPTION_KEY`，不要依赖临时控制台变量。
 
-1. 新建 Collection：`Secure Vault Auth`。
-2. 建立 `register` 请求（POST），先注册用户。
-3. 建立 `login` 请求（POST），提取返回 `data.token` 存到环境变量 `jwt_token`。
-4. 建立 `me` 请求（GET），Header 设置：
-   - `Authorization: Bearer {{jwt_token}}`
-5. 先不带 Header 调一次验证 401，再带 Header 验证成功。
+## 当前范围
 
-## Backend Module 2: 文档记录管理
-
-模块二新增登录用户的私有文档记录 CRUD。所有文档操作都基于当前 JWT 认证身份解析出的 `userId`，前端不能传 `userId`，接口响应也不会返回 `userId`。
-
-本模块暂不包含真实文件上传、文档解析、向量检索、Embedding、Ollama 和 RAG。
-
-### 接口列表
-
-- **POST** `http://localhost:8080/api/documents`：创建文档记录
-- **GET** `http://localhost:8080/api/documents`：查询当前用户文档列表
-- **GET** `http://localhost:8080/api/documents/{id}`：查询当前用户文档详情
-- **PUT** `http://localhost:8080/api/documents/{id}`：修改当前用户文档
-- **DELETE** `http://localhost:8080/api/documents/{id}`：删除当前用户文档
-
-### 认证方式
-
-```text
-Authorization: Bearer <token>
-```
-
-### 创建文档
-
-```powershell
-curl.exe -X POST "http://localhost:8080/api/documents" `
-  -H "Authorization: Bearer <token>" `
-  -H "Content-Type: application/json" `
-  -d "{\"title\":\"Spring Security 学习笔记\",\"description\":\"记录模块一 JWT 鉴权流程\"}"
-```
-
-### 查询文档列表
-
-```powershell
-curl.exe -X GET "http://localhost:8080/api/documents" `
-  -H "Authorization: Bearer <token>"
-```
-
-### 查询文档详情
-
-```powershell
-curl.exe -X GET "http://localhost:8080/api/documents/1" `
-  -H "Authorization: Bearer <token>"
-```
-
-### 修改文档
-
-```powershell
-curl.exe -X PUT "http://localhost:8080/api/documents/1" `
-  -H "Authorization: Bearer <token>" `
-  -H "Content-Type: application/json" `
-  -d "{\"title\":\"新的标题\",\"description\":\"新的描述\"}"
-```
-
-### 删除文档
-
-```powershell
-curl.exe -X DELETE "http://localhost:8080/api/documents/1" `
-  -H "Authorization: Bearer <token>"
-```
-
-### 权限隔离说明
-
-文档详情、修改、删除都会使用 `documentId + currentUserId` 查询。文档不存在或文档不属于当前登录用户时，统一返回 `404` 和 `文档不存在`，避免资源枚举。
+Secure Vault AI 当前不包含复杂前端、OCR、多模态、Agent、团队协作权限、Redis、MQ 或 Elasticsearch。项目重点是把隐私优先的知识库后端主链路做完整，并能稳定演示认证、加密文件、解析、chunking、embedding、pgvector 检索、RAG、会话记录、用户隔离和审计日志。
