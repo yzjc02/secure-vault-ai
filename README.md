@@ -59,8 +59,9 @@ powershell -ExecutionPolicy Bypass -File .\scripts\logs-vault.ps1
 | Access Control | Completed | `AccessControlService` 集中做用户资源归属检查 |
 | Response Sanitization | Completed | 响应不暴露 `userId`、本地路径、stored filename、密钥、embedding 数组等 |
 | Delete Cleanup | Completed | 删除文档时清理本地加密文件、chunks 和 embedding 数据 |
+| Document Reindex | Completed | 基于已有 extractedText 安全重建 chunks 和 embeddings |
 | Audit Logs | Completed | 记录认证、文档、embedding、RAG、访问拒绝、解密失败等安全事件 |
-| Smoke Tests | Completed | 已有模块 6 到模块 9 PowerShell smoke 脚本 |
+| Smoke Tests | Completed | 已有模块 6 到模块 11 PowerShell smoke / verify 脚本 |
 
 ## 技术栈
 
@@ -70,7 +71,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\logs-vault.ps1
 - AI / RAG：文本清洗、chunking、embedding、pgvector、RAG prompt、answer + sources
 - Database：PostgreSQL、pgvector、H2 测试数据库
 - Deployment：Docker Compose、`.env` 环境变量、PowerShell 脚本
-- Testing：Maven tests、Spring Security tests、模块 smoke tests、模块十文档静态验证
+- Testing：Maven tests、Spring Security tests、模块 smoke tests、模块十和模块十一验证脚本
 - Documentation：README、架构文档、API 指南、演示脚本、简历答辩材料、安全设计文档
 
 ## 系统架构
@@ -95,8 +96,10 @@ flowchart LR
 - 上传加密落盘流程：用户调用 `/api/documents/upload` 上传文件，服务端校验文件类型和大小，生成安全文件名，使用 AES-GCM 加密写入本地存储，并在 `documents` 表保存安全元数据。
 - 解析分块流程：上传成功后自动触发解析，`FileStorageService` 透明解密文件流，Apache Tika 抽取文本，`TextChunkingService` 清洗并分块，写入 `document_chunks`。
 - embedding 入库流程：用户调用 `/api/documents/{id}/embed`，系统对当前用户该文档的 chunks 生成 embedding，在 PostgreSQL + pgvector 中保存并更新文档 embedding 状态。
+- 文档重新索引流程：用户调用 `POST /api/documents/{documentId}/reindex`，系统基于已有 `extractedText` 安全删除旧 chunks，重新分块并重新生成 embeddings，最终恢复到 `EMBEDDED`。
 - RAG 问答流程：用户调用 `/api/chat/ask`，系统按当前用户范围检索相似 chunks，构造 RAG prompt，调用 deterministic 或 Ollama chat provider，返回 `answer` 和 `sources`，并写入 conversation 记录。
 - Module 10: RAG Evidence Trail：RAG answers now return verifiable source metadata. Each source includes document id, document title, original filename, chunk index, similarity score, snippet, and created time. Users can inspect full source chunk content through `GET /api/documents/{documentId}/chunks/{chunkIndex}`. Sensitive fields such as embeddings, file paths, userId, and prompts are never exposed. Cross-user chunk access is blocked.
+- Module 11: Document Reindex：Users can rebuild chunks and embeddings from existing extractedText through `POST /api/documents/{documentId}/reindex`. Old chunks are removed through safe bulk delete, status moves through `REINDEXING`, `EMBEDDED`, or `REINDEX_FAILED`, and RAG Evidence Trail remains available after reindex.
 - 审计日志流程：认证、上传、解析、embedding、RAG、删除、跨用户访问失败、解密失败等事件写入 `audit_logs`；审计写入失败不会中断主业务。
 - 跨用户访问拦截流程：服务层只按当前 JWT 解析出的 `userId` 查询资源，跨用户访问通过 `AccessControlService` 收口并返回 `404`，避免暴露资源是否存在。
 
@@ -107,6 +110,15 @@ flowchart LR
 - Users can inspect full source chunk content through `GET /api/documents/{documentId}/chunks/{chunkIndex}`.
 - Sensitive fields such as embeddings, file paths, userId, and prompts are never exposed.
 - Cross-user chunk access is blocked.
+
+## Module 11: Document Reindex
+
+- Adds `POST /api/documents/{documentId}/reindex`.
+- Allows users to rebuild chunks and embeddings from existing `extractedText`.
+- Deletes old chunks through safe bulk delete to avoid loading large embedding JSON.
+- Updates document status to `REINDEXING`, `EMBEDDED`, or `REINDEX_FAILED`.
+- Preserves user isolation: users can only reindex their own documents.
+- Keeps RAG Evidence Trail working after reindex.
 
 ## 快速启动
 
@@ -205,6 +217,26 @@ powershell -ExecutionPolicy Bypass -File .\scripts\module10-smoke.ps1
 MODULE 10 SMOKE TEST PASSED
 ```
 
+模块十一文档重新索引静态验证：
+
+```powershell
+cd C:\path\to\secure-vault-ai
+powershell -ExecutionPolicy Bypass -File .\scripts\module11-verify.ps1
+```
+
+模块十一 Document Reindex 冒烟测试：
+
+```powershell
+cd C:\path\to\secure-vault-ai
+powershell -ExecutionPolicy Bypass -File .\scripts\module11-smoke.ps1
+```
+
+成功时脚本会输出：
+
+```text
+MODULE 11 SMOKE TEST PASSED
+```
+
 ## 文档导航
 
 - [docs/architecture.md](docs/architecture.md)：系统架构、数据流、安全链路和设计取舍。
@@ -215,6 +247,7 @@ MODULE 10 SMOKE TEST PASSED
 - [docs/privacy-design.md](docs/privacy-design.md)：隐私设计、安全边界和响应脱敏说明。
 - [docs/audit-design.md](docs/audit-design.md)：审计日志设计、脱敏策略和验收方式。
 - [docs/evidence-trail-design.md](docs/evidence-trail-design.md)：RAG Evidence Trail、chunk detail API、用户隔离和测试策略。
+- [docs/reindex-design.md](docs/reindex-design.md)：Document Reindex API、状态流转、bulk delete、事务失败处理和测试策略。
 - [docs/troubleshooting.md](docs/troubleshooting.md)：常见运行和演示故障处理。
 
 ## 安全注意事项
@@ -230,4 +263,4 @@ MODULE 10 SMOKE TEST PASSED
 
 ## 当前范围
 
-Secure Vault AI 当前不包含复杂前端、OCR、多模态、Agent、团队协作权限、Redis、MQ 或 Elasticsearch。项目重点是把隐私优先的知识库后端主链路做完整，并能稳定演示认证、加密文件、解析、chunking、embedding、pgvector 检索、RAG、会话记录、用户隔离和审计日志。
+Secure Vault AI 当前不包含复杂前端、OCR、多模态、Agent、团队协作权限、Redis、MQ 或 Elasticsearch。项目重点是把隐私优先的知识库后端主链路做完整，并能稳定演示认证、加密文件、解析、chunking、embedding、reindex、pgvector 检索、RAG、会话记录、用户隔离和审计日志。

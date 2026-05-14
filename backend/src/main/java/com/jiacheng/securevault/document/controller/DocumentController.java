@@ -5,6 +5,7 @@ import com.jiacheng.securevault.document.dto.DocumentCreateRequest;
 import com.jiacheng.securevault.document.dto.DocumentChunkDetailResponse;
 import com.jiacheng.securevault.document.dto.DocumentChunkResponse;
 import com.jiacheng.securevault.document.dto.DocumentResponse;
+import com.jiacheng.securevault.document.dto.DocumentReindexResponse;
 import com.jiacheng.securevault.document.dto.EmbeddingStatusResponse;
 import com.jiacheng.securevault.document.dto.SemanticSearchRequest;
 import com.jiacheng.securevault.document.dto.SimilarChunkResponse;
@@ -13,6 +14,7 @@ import com.jiacheng.securevault.document.dto.DocumentUpdateRequest;
 import com.jiacheng.securevault.document.service.DocumentChunkService;
 import com.jiacheng.securevault.document.service.DocumentEmbeddingService;
 import com.jiacheng.securevault.document.service.DocumentParsingService;
+import com.jiacheng.securevault.document.service.DocumentReindexService;
 import com.jiacheng.securevault.document.service.DocumentService;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
@@ -37,15 +39,18 @@ public class DocumentController {
     private final DocumentParsingService documentParsingService;
     private final DocumentChunkService documentChunkService;
     private final DocumentEmbeddingService documentEmbeddingService;
+    private final DocumentReindexService documentReindexService;
 
     public DocumentController(DocumentService documentService,
                               DocumentParsingService documentParsingService,
                               DocumentChunkService documentChunkService,
-                              DocumentEmbeddingService documentEmbeddingService) {
+                              DocumentEmbeddingService documentEmbeddingService,
+                              DocumentReindexService documentReindexService) {
         this.documentService = documentService;
         this.documentParsingService = documentParsingService;
         this.documentChunkService = documentChunkService;
         this.documentEmbeddingService = documentEmbeddingService;
+        this.documentReindexService = documentReindexService;
     }
 
     @PostMapping
@@ -98,6 +103,11 @@ public class DocumentController {
     @PostMapping("/{id}/embed")
     public ApiResponse<DocumentResponse> embed(@PathVariable Long id) {
         return ApiResponse.success(documentEmbeddingService.embedDocument(id));
+    }
+
+    @PostMapping("/{documentId}/reindex")
+    public ApiResponse<DocumentReindexResponse> reindex(@PathVariable Long documentId) {
+        return ApiResponse.success(documentReindexService.reindexDocument(documentId));
     }
 
     @GetMapping("/{id}/embedding-status")

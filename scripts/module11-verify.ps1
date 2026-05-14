@@ -46,14 +46,19 @@ if (-not (Test-Path -LiteralPath (Join-Path $root "docker-compose.yml") -PathTyp
 }
 
 $requiredFiles = @(
-    "scripts/start-vault.ps1",
-    "scripts/stop-vault.ps1",
-    "scripts/logs-vault.ps1",
+    "backend/src/main/java/com/jiacheng/securevault/document/controller/DocumentController.java",
+    "backend/src/main/java/com/jiacheng/securevault/document/dto/DocumentReindexResponse.java",
+    "backend/src/main/java/com/jiacheng/securevault/document/entity/Document.java",
+    "backend/src/main/java/com/jiacheng/securevault/document/repository/DocumentChunkRepository.java",
+    "backend/src/main/java/com/jiacheng/securevault/document/repository/DocumentRepository.java",
+    "backend/src/main/java/com/jiacheng/securevault/document/service/DocumentReindexService.java",
+    "backend/src/main/java/com/jiacheng/securevault/audit/enums/AuditAction.java",
+    "backend/src/test/java/com/jiacheng/securevault/document/DocumentReindexControllerTest.java",
+    "backend/src/test/java/com/jiacheng/securevault/document/DocumentReindexServiceTest.java",
+    "scripts/module11-smoke.ps1",
     "scripts/module11-verify.ps1",
-    "backend/src/main/resources/static/index.html",
-    "backend/src/main/resources/static/app.js",
-    "backend/src/main/resources/static/styles.css",
-    "docs/user-guide.md"
+    "docs/reindex-design.md",
+    "README.md"
 )
 
 Write-Step "Check required Module 11 files"
@@ -62,82 +67,168 @@ foreach ($file in $requiredFiles) {
     Assert-True (Test-Path -LiteralPath (Join-Path $root $file) -PathType Leaf) "Missing required file: $file"
 }
 
-$indexHtml = Read-Utf8 (Join-Path $root "backend/src/main/resources/static/index.html")
-$appJs = Read-Utf8 (Join-Path $root "backend/src/main/resources/static/app.js")
-$stylesCss = Read-Utf8 (Join-Path $root "backend/src/main/resources/static/styles.css")
-$startScript = Read-Utf8 (Join-Path $root "scripts/start-vault.ps1")
+$controller = Read-Utf8 (Join-Path $root "backend/src/main/java/com/jiacheng/securevault/document/controller/DocumentController.java")
+$response = Read-Utf8 (Join-Path $root "backend/src/main/java/com/jiacheng/securevault/document/dto/DocumentReindexResponse.java")
+$document = Read-Utf8 (Join-Path $root "backend/src/main/java/com/jiacheng/securevault/document/entity/Document.java")
+$chunkRepository = Read-Utf8 (Join-Path $root "backend/src/main/java/com/jiacheng/securevault/document/repository/DocumentChunkRepository.java")
+$documentRepository = Read-Utf8 (Join-Path $root "backend/src/main/java/com/jiacheng/securevault/document/repository/DocumentRepository.java")
+$service = Read-Utf8 (Join-Path $root "backend/src/main/java/com/jiacheng/securevault/document/service/DocumentReindexService.java")
+$auditAction = Read-Utf8 (Join-Path $root "backend/src/main/java/com/jiacheng/securevault/audit/enums/AuditAction.java")
+$controllerTest = Read-Utf8 (Join-Path $root "backend/src/test/java/com/jiacheng/securevault/document/DocumentReindexControllerTest.java")
+$serviceTest = Read-Utf8 (Join-Path $root "backend/src/test/java/com/jiacheng/securevault/document/DocumentReindexServiceTest.java")
+$smoke = Read-Utf8 (Join-Path $root "scripts/module11-smoke.ps1")
 $readme = Read-Utf8 (Join-Path $root "README.md")
-$userGuide = Read-Utf8 (Join-Path $root "docs/user-guide.md")
-$termChinese = -join ([char[]](0x4E2D, 0x6587))
-$termLanguageSwitch = -join ([char[]](0x4E2D, 0x82F1, 0x6587, 0x5207, 0x6362))
+$design = Read-Utf8 (Join-Path $root "docs/reindex-design.md")
 
-Write-Step "Check index.html terms"
+Write-Step "Check API and DTO"
 
-foreach ($term in @("Secure Vault AI", "data-i18n", "data-i18n-placeholder", "language", $termChinese, "English", "languageSelect", "app.js", "styles.css")) {
-    Assert-Contains -Content $indexHtml -Term $term -Path "index.html"
+foreach ($term in @(
+    '@PostMapping("/{documentId}/reindex")',
+    "DocumentReindexResponse",
+    "documentId",
+    "title",
+    "status",
+    "chunkCount",
+    "embeddedChunkCount",
+    "reindexedAt"
+)) {
+    Assert-Contains -Content ($controller + "`n" + $response) -Term $term -Path "DocumentController/DocumentReindexResponse"
 }
 
-foreach ($term in @("sidebar-header", "sidebar-body", "sidebar-footer", "sidebar-section", "section-scroll", "conversation-scroll", "document-scroll")) {
-    Assert-True (($indexHtml.Contains($term)) -or ($stylesCss.Contains($term))) "index.html or styles.css does not contain required layout term: $term"
+foreach ($term in @("STATUS_REINDEXING", "REINDEXING", "STATUS_REINDEX_FAILED", "REINDEX_FAILED")) {
+    Assert-Contains -Content $document -Term $term -Path "Document.java"
 }
 
-Write-Step "Check app.js terms"
+Write-Step "Check safe bulk delete"
 
-foreach ($term in @("localStorage", "Authorization", "Bearer", "FormData", "fetch", "email", "apiFetch", "renderSources", "logout", "ask", "contentPreview", "No readable preview was returned", "source.documentId", "I18N", "zh-CN", "en-US", "secureVaultLanguage", "applyLanguage", "setLanguage", "data-i18n", "data-i18n-placeholder")) {
-    Assert-Contains -Content $appJs -Term $term -Path "app.js"
+foreach ($term in @(
+    "@Modifying",
+    "@Query",
+    "delete from DocumentChunk",
+    "chunk.userId = :userId",
+    "chunk.documentId = :documentId",
+    "deleteByUserIdAndDocumentIdDirectly"
+)) {
+    Assert-Contains -Content $chunkRepository -Term $term -Path "DocumentChunkRepository.java"
 }
 
-Assert-True (-not $appJs.Contains("source.chunkId")) "app.js must not use chunkId as a source preview fallback"
+Assert-True (-not $chunkRepository.Contains("int deleteByUserIdAndDocumentId(")) "Repository must not expose confusing derived delete method name"
+Assert-Contains -Content $documentRepository -Term "findByIdAndUserIdForUpdate" -Path "DocumentRepository.java"
+Assert-Contains -Content $documentRepository -Term "PESSIMISTIC_WRITE" -Path "DocumentRepository.java"
 
-Write-Step "Check styles.css terms"
+Write-Step "Check service flow"
 
-foreach ($term in @("sidebar", "chat", "composer", "message", "source", "badge", "language")) {
-    Assert-Contains -Content $stylesCss -Term $term -Path "styles.css"
+foreach ($term in @(
+    "prepareReindex",
+    "executeReindex",
+    "markReindexFailed",
+    "deleteByUserIdAndDocumentIdDirectly",
+    "textChunkingService.split",
+    "embeddingClient.embed",
+    "chunkEmbeddingStore.saveEmbedding",
+    "Document.STATUS_REINDEXING",
+    "Document.STATUS_EMBEDDED",
+    "Document.STATUS_REINDEX_FAILED",
+    "DOCUMENT_NOT_PARSED",
+    "DOCUMENT_REINDEXING",
+    "DOCUMENT_REINDEX"
+)) {
+    Assert-Contains -Content $service -Term $term -Path "DocumentReindexService.java"
 }
 
-foreach ($term in @("min-height: 0", "overflow-y: auto", "flex-direction: column", "100vh")) {
-    Assert-Contains -Content $stylesCss -Term $term -Path "styles.css"
+Assert-Contains -Content $auditAction -Term "DOCUMENT_REINDEX" -Path "AuditAction.java"
+Assert-True (-not $service.Contains("getFilePath()")) "Reindex service must not use filePath"
+Assert-True (-not $service.Contains("getStoredFilename()")) "Reindex service must not re-read uploaded file"
+
+Write-Step "Check tests"
+
+foreach ($term in @(
+    "shouldReindexDocumentAndKeepRagEvidenceTrailWorking",
+    "shouldReturn404ForCrossUserReindexWithoutChangingOwnerDocument",
+    "shouldRequireAuthenticationForReindex",
+    "shouldReturn400WhenExtractedTextIsEmpty",
+    "shouldKeepChunkCountStableAcrossRepeatedReindexCalls",
+    "shouldRejectReindexWhenDocumentIsAlreadyReindexing",
+    "assertNoSensitiveFields",
+    "DOCUMENT_REINDEX"
+)) {
+    Assert-Contains -Content $controllerTest -Term $term -Path "DocumentReindexControllerTest.java"
 }
 
-Write-Step "Check start-vault.ps1 terms"
-
-foreach ($term in @("docker compose up -d --build", "Start-Process", "JWT_SECRET", "FILE_ENCRYPTION_KEY", "RandomNumberGenerator")) {
-    Assert-Contains -Content $startScript -Term $term -Path "start-vault.ps1"
+foreach ($term in @(
+    "shouldMarkDocumentReindexFailedAndAuditWhenEmbeddingFails",
+    "STATUS_REINDEX_FAILED",
+    "deleteByUserIdAndDocumentIdDirectly",
+    "newStatus=REINDEX_FAILED"
+)) {
+    Assert-Contains -Content $serviceTest -Term $term -Path "DocumentReindexServiceTest.java"
 }
 
-Write-Step "Check README terms"
+Write-Step "Check smoke script"
 
-foreach ($term in @("Quick Start for Personal Use", "scripts/start-vault.ps1", "docs/user-guide.md", "http://localhost:8080")) {
+foreach ($term in @(
+    'param(',
+    '$BaseUrl = "http://localhost:8080"',
+    "Register-AndLogin",
+    "email",
+    "/api/documents/upload",
+    '/api/documents/$docId/embed',
+    "/api/chat/ask",
+    '/api/documents/$docId/reindex',
+    "documentId",
+    "documentTitle",
+    "originalFilename",
+    "chunkIndex",
+    "score",
+    "snippet",
+    "createdAt",
+    "MODULE 11 SMOKE TEST PASSED"
+)) {
+    Assert-Contains -Content $smoke -Term $term -Path "module11-smoke.ps1"
+}
+
+foreach ($term in @("embeddingJson", "embedding_json", "filePath", "userId", "fullPrompt", "storedFilename")) {
+    Assert-Contains -Content $smoke -Term $term -Path "module11-smoke.ps1"
+}
+
+Write-Step "Check README and design doc"
+
+foreach ($term in @(
+    "Module 11: Document Reindex",
+    "POST /api/documents/{documentId}/reindex",
+    'existing `extractedText`',
+    "safe bulk delete",
+    '`REINDEXING`, `EMBEDDED`, or `REINDEX_FAILED`',
+    "users can only reindex their own documents",
+    "RAG Evidence Trail"
+)) {
     Assert-Contains -Content $readme -Term $term -Path "README.md"
 }
 
-Write-Step "Check user guide terms"
-
-foreach ($term in @("start-vault.ps1", "stop-vault.ps1", "logs-vault.ps1", "Register", "Login", "Upload", "Embed", "Ask", "sources", "audit logs", $termLanguageSwitch, "English", $termChinese)) {
-    Assert-Contains -Content $userGuide -Term $term -Path "docs/user-guide.md"
+foreach ($term in @(
+    "## 1.",
+    "## 2.",
+    "## 3.",
+    "## 4.",
+    "## 5.",
+    "bulk delete",
+    "@Modifying + @Query",
+    "Bad value for type long",
+    "## 7.",
+    "## 8.",
+    "audit log",
+    "## 10.",
+    "## 11.",
+    "## 12."
+)) {
+    Assert-Contains -Content $design -Term $term -Path "docs/reindex-design.md"
 }
 
 Write-Step "Run safety checks"
 
-$safetyFiles = @(
-    "README.md",
-    "docs/user-guide.md",
-    "docs/demo-script.md",
-    "scripts/start-vault.ps1",
-    "scripts/stop-vault.ps1",
-    "scripts/logs-vault.ps1",
-    "backend/src/main/resources/static/index.html",
-    "backend/src/main/resources/static/app.js",
-    "backend/src/main/resources/static/styles.css"
-)
-
-$combined = ""
-foreach ($file in $safetyFiles) {
-    if (Test-Path -LiteralPath (Join-Path $root $file) -PathType Leaf) {
-        $combined += "`n--- FILE: $file ---`n"
-        $combined += Read-Utf8 (Join-Path $root $file)
-    }
-}
+$combined = $controller + "`n" + $response + "`n" + $document + "`n" + $chunkRepository + "`n" +
+        $documentRepository + "`n" + $service + "`n" + $controllerTest + "`n" + $serviceTest + "`n" +
+        $smoke + "`n" + $readme + "`n" + $design
 
 $unfinishedWords = @("TO" + "DO", "TB" + "D", "FIX" + "ME")
 $escapedUnfinishedWords = $unfinishedWords | ForEach-Object { [regex]::Escape($_) }
@@ -146,39 +237,10 @@ Assert-True (-not ($combined -match $unfinishedPattern)) "Module 11 files contai
 Assert-True (-not ($combined -match 'Authorization:\s*Bearer\s+eyJ[A-Za-z0-9_\-]+')) "Module 11 files contain a JWT-looking Authorization header"
 Assert-True (-not ($combined -match '\bBearer\s+eyJ[A-Za-z0-9_\-]+')) "Module 11 files contain a JWT-looking bearer token sample"
 Assert-True (-not ($combined -match '(?i)C:\\Users\\')) "Module 11 files contain a real-looking Windows user directory"
+Assert-True (-not $response.Contains("userId")) "DocumentReindexResponse must not expose userId"
+Assert-True (-not $response.Contains("filePath")) "DocumentReindexResponse must not expose filePath"
+Assert-True (-not $response.Contains("storedFilename")) "DocumentReindexResponse must not expose storedFilename"
+Assert-True (-not $response.Contains("embeddingJson")) "DocumentReindexResponse must not expose embeddingJson"
+Assert-True (-not $response.Contains("fullPrompt")) "DocumentReindexResponse must not expose fullPrompt"
 
-$jwtSecretMatches = [regex]::Matches($combined, '(?im)^\s*JWT_SECRET\s*=\s*([^\s`"'']+)')
-foreach ($match in $jwtSecretMatches) {
-    $value = $match.Groups[1].Value.Trim()
-    $allowed = @("replace-with-at-least-64-bytes-secret", "change-me-generated-by-setup")
-
-    if ($allowed -notcontains $value -and $value.Length -ge 32) {
-        Fail "Module 11 files contain a suspicious JWT_SECRET value"
-    }
-}
-
-$fileKeyMatches = [regex]::Matches($combined, '(?im)^\s*FILE_ENCRYPTION_KEY\s*=\s*([^\s`"'']+)')
-foreach ($match in $fileKeyMatches) {
-    $value = $match.Groups[1].Value.Trim()
-    $allowed = @("replace-with-base64-32-byte-key", "replace-with-base64-32-byte-key-placeholder")
-
-    if ($allowed -notcontains $value -and $value.Length -ge 32) {
-        Fail "Module 11 files contain a suspicious FILE_ENCRYPTION_KEY value"
-    }
-}
-
-$devKeyPath = Join-Path $root ".secure-vault/file-encryption.key"
-if (Test-Path -LiteralPath $devKeyPath -PathType Leaf) {
-    $devKeyContent = (Read-Utf8 $devKeyPath).Trim()
-    if ($devKeyContent.Length -ge 16) {
-        Assert-True (-not $combined.Contains($devKeyContent)) "Module 11 files contain the local file-encryption.key content"
-    }
-}
-
-foreach ($placeholder in @("<token>", "<documentId>", "<auditLogId>", "replace-with-at-least-64-bytes-secret", "replace-with-base64-32-byte-key")) {
-    if ($combined.Contains($placeholder)) {
-        Write-Step "Allowed placeholder found: $placeholder"
-    }
-}
-
-Write-Host "MODULE 11 USABILITY VERIFY PASSED"
+Write-Host "MODULE 11 REINDEX VERIFY PASSED"

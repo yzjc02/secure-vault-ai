@@ -453,6 +453,48 @@ Error cases:
 - `400`：文档没有 chunks、embedding 失败、维度不匹配。
 - `404`：文档不存在或属于其他用户。
 
+### 手动重新索引
+
+- Method: `POST`
+- Path: `/api/documents/{documentId}/reindex`
+- Auth required: Yes
+
+说明：
+
+- 基于当前文档已有 `extractedText` 重新分块并重新生成 embeddings。
+- 不重新上传文件，不重新解析原始文件，不删除 Document 本体。
+- 旧 chunks 使用 `@Modifying + @Query` bulk delete 删除，避免加载较大的 `embedding_json`。
+- 成功后文档状态为 `EMBEDDED`；处理中状态为 `REINDEXING`；失败状态为 `REINDEX_FAILED`。
+
+Response example:
+
+```json
+{
+  "code": 0,
+  "message": "OK",
+  "data": {
+    "documentId": 31,
+    "title": "模块十一测试文档",
+    "status": "EMBEDDED",
+    "chunkCount": 8,
+    "embeddedChunkCount": 8,
+    "reindexedAt": "2026-05-14T10:30:00"
+  }
+}
+```
+
+Error cases:
+
+- `400`：文档没有 `extractedText`，或文档正在 `REINDEXING`。
+- `401`：未登录。
+- `404`：文档不存在或属于其他用户。
+- `500`：重新分块或 embedding 失败，文档最终状态更新为 `REINDEX_FAILED`。
+
+Security notes:
+
+- 用户只能 reindex 自己的文档。
+- response 不包含 `userId`、`filePath`、`storedFilename`、`embeddingJson`、`embedding_json`、`fullPrompt` 或异常堆栈。
+
 ### 获取 embedding 状态
 
 - Method: `GET`

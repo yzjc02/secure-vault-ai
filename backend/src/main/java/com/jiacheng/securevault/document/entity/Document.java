@@ -26,6 +26,8 @@ public class Document {
     public static final String STATUS_CHUNKED = "CHUNKED";
     public static final String STATUS_EMBEDDING = "EMBEDDING";
     public static final String STATUS_EMBEDDED = "EMBEDDED";
+    public static final String STATUS_REINDEXING = "REINDEXING";
+    public static final String STATUS_REINDEX_FAILED = "REINDEX_FAILED";
     public static final String STATUS_FAILED = "FAILED";
 
     @Id

@@ -128,7 +128,7 @@ public class DocumentService {
         try {
             Document document = accessControlService.requireOwnedDocument(id, currentUserId);
             fileStorageService.delete(document.getStoredFilename());
-            documentChunkRepository.deleteByUserIdAndDocumentId(currentUserId, document.getId());
+            documentChunkRepository.deleteByUserIdAndDocumentIdDirectly(currentUserId, document.getId());
             documentRepository.delete(document);
             auditLogService.recordForUser(currentUserId, AuditAction.DOCUMENT_DELETE_SUCCESS,
                     AuditResourceType.DOCUMENT, id, true, "Document deleted");

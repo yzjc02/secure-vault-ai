@@ -27,5 +27,5 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Lo
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from DocumentChunk chunk where chunk.userId = :userId and chunk.documentId = :documentId")
-    int deleteByUserIdAndDocumentId(@Param("userId") Long userId, @Param("documentId") Long documentId);
+    int deleteByUserIdAndDocumentIdDirectly(@Param("userId") Long userId, @Param("documentId") Long documentId);
 }

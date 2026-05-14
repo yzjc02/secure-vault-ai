@@ -146,7 +146,7 @@ public class DocumentChunkService {
     }
 
     private void clearChunks(Document document) {
-        documentChunkRepository.deleteByUserIdAndDocumentId(document.getUserId(), document.getId());
+        documentChunkRepository.deleteByUserIdAndDocumentIdDirectly(document.getUserId(), document.getId());
         document.setChunkCount(0);
         document.setChunkedAt(null);
         document.setEmbeddedChunkCount(0);
